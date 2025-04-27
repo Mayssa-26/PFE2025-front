@@ -1,0 +1,314 @@
+/* Global styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Main container */
+
+/* Registration box */
+.sregister-ignup-box {
+  width: 100%;
+  max-width: 500px;
+  min-width: 300px;
+  padding: 20px;
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  text-align: center;
+  transition: 0.3s ease-in-out;
+  margin-top: -80px;
+}
+
+
+
+/* Main container */
+.register-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 90%;
+  max-width: 1200px; /* Empêcher d’être trop large */
+  height: 120vh;
+  background: linear-gradient(135deg, #eee5eb, #cecdec);
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin: auto;
+  margin-top: -20px;
+  flex-wrap: wrap; /* Permet aux éléments de s’adapter */
+  gap: 20px;}
+
+/* Registration box */
+
+
+.sregister-ignup-box:hover {
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
+  transform: translateY(-5px);
+}
+
+/* Title */
+.sregister-ignup-box h2 {
+  font-size: 24px;  /* Increased font size */
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #230f49;
+}
+
+/* Input group */
+.register-input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+  text-align: left;
+}
+
+.register-input-group span {
+  font-size: 14px;
+  font-weight: 500;
+  color: #230f49;
+  margin-bottom: 5px;
+}
+
+/* Input fields */
+.register-input-group input {
+  border: 2px solid #ddd;
+  background: #f9f9f9;
+  font-size: 14px;
+  padding: 12px;
+  color: #333;
+  border-radius: 8px;
+  width: 100%;
+  transition: all 0.3s;
+}
+
+.register-input-group input:focus {
+  border-color: #230f49;
+  background: #fff;
+}
+
+/* Two-column layout for name and address */
+.register-input-group.flex-group {
+  display: flex;
+  gap: 10px;
+}
+
+.register-input-group.flex-group input {
+  width: 50%;
+}
+
+/* Submit button */
+.register-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #230f49, #5a4287);
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease-in-out;  /* Added smooth transition */
+}
+
+.register-btn:hover {
+  background: linear-gradient(135deg, #5a4287, #230f49);
+  transform: scale(1.05);
+}
+
+/* Link to login */
+.register-already-member {
+  font-size: 14px;
+  margin-top: 15px;
+  display: block;
+  color: #230f49;
+  font-weight: bold;
+  text-decoration: none;
+  transition: 0.3s;
+}
+
+.register-already-member:hover {
+  text-decoration: underline;
+  color: #652bd2;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 600px) {
+  .sregister-ignup-box{
+    padding: 25px;
+    max-width: 90%;
+  }
+
+  .register-input-group.flex-group {
+    flex-direction: column;
+  }
+
+  .register-input-group.flex-group input {
+    width: 100%;
+  }
+
+  .register-btn {
+    font-size: 14px;
+    padding: 10px;
+  }
+
+  /* Adjust title font size for smaller screens */
+  .sregister-ignup-box h2 {
+    font-size: 20px;
+  }
+  .register-image-box {
+    display: none; /* Cacher l’image sur les petits écrans */
+  }
+}
+
+.sregister-ignup-box h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #230f49;
+}
+.register-image-box {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-width: 40%;
+}
+
+.register-image-box img {
+  width: 100%;
+  max-width: 250px;
+  filter: drop-shadow(4px 4px 10px rgba(0, 0, 0, 0.2)); /* Effet de profondeur */
+}
+
+/* Input group */
+.register-input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 15px;
+  text-align: left;
+}
+
+.register-input-group span {
+  font-size: 14px;
+  font-weight: 500;
+  color: #230f49;
+  margin-bottom: 5px;
+}
+
+/* Input fields */
+.register-input-group input {
+  border: 2px solid #ddd;
+  background: #f9f9f9;
+  font-size: 14px;
+  padding: 12px;
+  color: #333;
+  border-radius: 8px;
+  width: 100%;
+  transition: all 0.3s;
+}
+
+.register-input-group input:focus {
+  border-color: #230f49;
+  background: #fff;
+}
+
+/* Two-column layout for name and address */
+.register-input-group.flex-group {
+  display: flex;
+  gap: 10px;
+}
+
+.register-input-group.flex-group input {
+  width: 50%;
+}
+
+/* Submit button */
+.register-btn {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #230f49, #4d1bab);
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.3s ease-in-out;
+}
+
+.register-btn:hover {
+  background: linear-gradient(135deg, #4d1bab, #230f49);
+  transform: scale(1.05);
+}
+
+/* Link to login */
+.register-already-member {
+  font-size: 14px;
+  margin-top: 15px;
+  display: block;
+  color: #230f49;
+  font-weight: bold;
+  text-decoration: none;
+  transition: 0.3s;
+}
+
+.register-already-member:hover {
+  text-decoration: underline;
+  color: #4d1bab;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 600px) {
+  .register-box {
+    padding: 25px;
+    max-width: 90%;
+  }
+
+  .register-input-group.flex-group {
+    flex-direction: column;
+  }
+
+  .register-input-group.flex-group input {
+    width: 100%;
+  }
+
+  .register-btn {
+    font-size: 14px;
+    padding: 10px;
+  }
+}
+.register-input-group select {
+  width: 100%;
+  padding: 12px 20px;
+  padding-left: 40px; /* espace pour l'icône */
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 16px;
+  background-color: #f9f9f9;
+  color: #333;
+  transition: all 0.3s ease;
+}
+
+.register-input-group select:focus {
+  outline: none;
+  border-color: #230f49;
+  background-color: #fff;
+}
+
+.register-input-group select option {
+  padding: 10px;
+  background-color: #fff;
+  color: #333;
+}
+
+.register-input-group select option:hover {
+  background-color: #f3f4f6;
+}
+
+.register-input-group select:disabled {
+  background-color: #e0e0e0;
+  cursor: not-allowed;
+}

@@ -1,0 +1,15 @@
+body {
+    margin: 0;
+    font-family: sans-serif;
+  }
+  
+  .dark-mode {
+    background-color: #121212;
+    color: white;
+  }
+  
+  .dashboard-admin {
+    background-color: white;
+    color: black;
+  }
+  

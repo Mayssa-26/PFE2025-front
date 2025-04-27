@@ -1,0 +1,202 @@
+/* trajet.css */
+.trajet-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2rem;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eef2f3, #d9e4f5);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+
+.trajet-title {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+/* 
+.map-container {
+  width: 100%;
+  max-width: 1000px;
+  height: 500px;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  margin-bottom: 2rem;
+  padding-left: 1200px;
+} */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+
+button {
+  padding: 0.6rem 1.5rem;
+  background: linear-gradient(45deg, #081c32, #123152);
+  color: #fff;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(45deg, #08223f, #0a233b);
+}
+
+button:active {
+  transform: translateY(0);
+  background: linear-gradient(45deg, #0c2945, #00264d);
+}
+
+input.address-input {
+  margin-top: 10px;
+  padding: 0.7rem 1rem;
+  width: 250px;
+  border: 2px solid #0c253f;
+  border-radius: 20px;
+  outline: none;
+  font-size: 0.95rem;
+  transition: border 0.3s ease, box-shadow 0.3s ease;
+}
+
+input.address-input:focus {
+  border-color: #10273f;
+  box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+}
+
+.geofence-result {
+  margin-top: 1rem;
+  font-size: 1rem;
+  color: #444;
+  text-align: center;
+}
+
+.error-message {
+  color: #e74c3c;
+  background: #fdecea;
+  border: 1px solid #f5c6cb;
+  padding: 1rem;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
+  margin: 1rem auto;
+}
+
+.loading {
+  font-size: 1.2rem;
+  color: #007bff;
+  text-align: center;
+  margin: 2rem 0;
+}
+
+.map-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  
+}
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.address-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.button-container2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+input.address-input {
+  margin-top: 0; /* on supprime le margin-top inutile */
+}
+/* Section du rapport d'activité */
+.activity-report {
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+
+.activity-report h2 {
+  text-align: center;
+  color: #333;
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+.activity-report .stats {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 20px;
+}
+
+.activity-report .stat {
+  background-color: #ffffff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  flex: 1;
+  margin: 0 10px;
+}
+
+.activity-report .stat h3 {
+  color: #28a745;
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+.activity-report .stat p {
+  color: #555;
+  font-size: 16px;
+}
+
+.activity-report .extended-stops {
+  background-color: #fff3cd;
+  border-left: 4px solid #ffeeba;
+  padding: 10px 20px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+}
+
+.activity-report .extended-stops h4 {
+  color: #856404;
+}
+
+.activity-report .speed-chart {
+  width: 100%;
+  height: 300px;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+}
+
+/* Animation de chargement */
+.activity-report .loading {
+  text-align: center;
+  color: #007bff;
+  font-size: 18px;
+  font-weight: bold;
+}
