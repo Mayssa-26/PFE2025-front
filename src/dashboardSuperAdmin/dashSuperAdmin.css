@@ -1,6 +1,20 @@
 /* Global Styles */
 
-
+.pagination-btn {
+    background-color: #092233;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    cursor: pointer;
+    margin: 0 10px;
+    font-size: 16px;
+  }
+  
+  .pagination-btn:hover {
+    background-color: #476b83;
+  }
+  
+  /* Dashboard Admin Styles */
 .dashboard-admin {
     display: flex;
     font-family: Arial, sans-serif;
@@ -685,6 +699,7 @@
     justify-content: center;
     align-items: center;
     position: relative;
+  left: 20px;
   }
   
   .donut-center {
@@ -705,4 +720,76 @@
     font-size: 28px;
     font-weight: bold;
   }
+  .donut-and-stats {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
   
+  .donut-wrapper {
+    flex: 1;
+    max-width: 50%;
+    position: relative;
+  }
+  
+  .additional-stats {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .stat-item {
+    text-align: left;
+  }
+  
+  .stat-item .stat-label {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 5px;
+  }
+  
+  .stat-item .stat-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333;
+  }
+  .sidebar {
+    z-index: 1000;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 250px;
+    background: #1e1d54;
+  }
+  .see-more-btn {
+    background: linear-gradient(135deg, #1e1d54, #426e91); /* Dégradé assorti au thème */
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px; /* Espacement entre texte et icône */
+    transition: background 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+  }
+  
+  .see-more-btn:hover {
+    background: linear-gradient(135deg, #2f2f5e, #5a8ab1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  .see-more-btn:active {
+    transform: translateY(0);
+  }
+  
+  .see-more-btn .icon {
+    font-size: 18px;
+  }

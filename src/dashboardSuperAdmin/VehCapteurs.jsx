@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+
+
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import { FaSearch } from "react-icons/fa";
@@ -11,8 +13,12 @@ import "../dashboardAdmin/Tous.css";
 import PropTypes from 'prop-types';
 import SidebarSupAdmin from "./SideBarSupAdmin";
 import NavbarSuperAdmin from "./NavBarSupAdmin";
+import "../dashboardAdmin/VehCap.css";
 
 const VehCapSupAdmin = ({ statusFilter, title, description }) => {
+  const [groups, setGroups] = useState([]);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [vehicles, setVehicles] = useState([]);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [loading, setLoading] = useState({ vehicles: false, positions: false });
@@ -41,25 +47,44 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
   const totalPages = Math.ceil(filteredVehicles.length / vehiclesPerPage);
 
   useEffect(() => {
-    const fetchVehicles = async () => {
+    const fetchVehiclesAndGroups = async () => {
       setLoading(prev => ({ ...prev, vehicles: true }));
       setError(null);
       try {
-        const response = await axios.get("https://yepyou.treetronix.com/api/devices", {
-          headers: { Authorization: "Basic " + btoa("admin:admin") },
-          timeout: 10000,
-        });
-        setVehicles(response.data);
+        const [vehiclesRes, groupsRes] = await Promise.all([
+          axios.get("https://yepyou.treetronix.com/api/devices", {
+            headers: {
+              Authorization: "Basic " + btoa("admin:admin"),
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          }),
+          axios.get("https://yepyou.treetronix.com/api/groups", {
+            headers: {
+              Authorization: "Basic " + btoa("admin:admin"),
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          }),
+        ]);
+        setVehicles(vehiclesRes.data);
+        setGroups(groupsRes.data);
       } catch (err) {
         console.error("Erreur API:", err);
-        setError("Impossible de charger les véhicules. Réessayez plus tard.");
+        setError("Impossible de charger les données. Réessayez plus tard.");
       } finally {
         setLoading(prev => ({ ...prev, vehicles: false }));
       }
     };
-    fetchVehicles();
+  
+    fetchVehiclesAndGroups();
   }, []);
-
+  
+  const getGroupName = (groupId) => {
+    const group = groups.find(g => g.id === groupId);
+    return group ? group.name : "-";
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
@@ -84,8 +109,8 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
     try {
       const response = await axios.get(`https://yepyou.treetronix.com/api/reports/route`, {
         params: { deviceId: selectedVehicle.id, from, to },
-        headers: { Authorization: "Basic " + btoa("admin:admin") },
-        timeout: 15000,
+        headers: { Authorization: "Basic " + btoa("admin:admin"),"Content-Type": "application/json",
+    Accept: "application/json" }
       });
 
       const positions = (Array.isArray(response.data) ? response.data : [response.data])
@@ -110,10 +135,16 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
       setLoading(prev => ({ ...prev, positions: false }));
     }
   };
-
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
   return (
     <div className="dashboard-admin">
-      <SidebarSupAdmin />
+      <button className="toggle-btn" onClick={toggleSidebar}>
+  {isSidebarOpen ? "✕" : "☰"}
+</button>
+      <SidebarSupAdmin isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+      
       <div className="main-content">
         <NavbarSuperAdmin />
         <div className="container2">
@@ -164,11 +195,11 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
               <table className="vehicles-table">
                 <thead>
                   <tr>
-                    <th>Nom</th>
+                    <th>Immatriculation</th>
                     <th>ID</th>
                     <th>Groupe</th>
                     <th>Status</th>
-                    <th>Actions</th>
+                    
                   </tr>
                 </thead>
                 <tbody>
@@ -176,31 +207,23 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
                     <tr key={vehicle.id}>
                       <td>{vehicle.name}</td>
                       <td>{vehicle.id}</td>
-                      <td>{vehicle.groupId || "-"}</td>
+                      <td>{getGroupName(vehicle.groupId)}</td>
+
                       <td>
                         <span className={`status-badge ${vehicle.status === 'online' ? 'online-oval' : 'offline-oval'}`}>
                           {vehicle.status || 'inconnu'}
                         </span>
                       </td>
-                      <td>
-                        <button
-                          className="action-btn"
-                          onClick={() => { setSelectedVehicle(vehicle); setFormError(null); }}
-                          disabled={loading.positions}
-                          title="Voir le trajet"
-                        >
-                          {loading.positions && selectedVehicle?.id === vehicle.id ? <span className="spinner"></span> : "🗺️"}
-                        </button>
-                      </td>
+                      
                     </tr>
                   ))}
                 </tbody>
               </table>
 
               <div className="pagination">
-                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="pagination-btn">Précédent</button>
+                <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1}>Précédent</button>
                 <span>{currentPage}</span>
-                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage >= totalPages} className="pagination-btn">Suivant</button>
+                <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage >= totalPages}>Suivant</button>
               </div>
             </>
           )

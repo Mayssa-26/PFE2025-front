@@ -17,8 +17,8 @@
 
 /* Global Styles */
 .map-container {
-  padding: 24px;
-  margin: 10px;
+  padding: 50px;
+  margin: 100px;
   background-color: #f0f2f5;
   border-radius: var(--border-radius);
   min-height: calc(100vh - 100px);
@@ -201,23 +201,136 @@
   font-family: 'Poppins', sans-serif !important;
 }
 
-/* Custom scrollbar */
+/* Sidebar Styles */
+.vehicle-sidebar {
+  width: var(--sidebar-width);
+  background-color: #fff;
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-color);
+  text-align: center;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.vehicle-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.vehicle-card {
+  padding: 18px;
+  border-radius: var(--border-radius);
+  background-color: #F8FAFC;
+  cursor: pointer;
+  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+  border-left: 4px solid transparent;  /* Ligne latérale de 4px */
+}
+
+.vehicle-card:hover {
+  background-color: #F1F5F9;
+  transform: translateY(-2px);
+  box-shadow: var(--hover-shadow);
+}
+
+.vehicle-card.selected {
+  background-color: rgba(67, 97, 238, 0.1);
+  border-left-color: var(--primary-color);
+}
+
+.vehicle-card.online {
+  border-left-color: var(--success-color);  /* Ligne verte pour en ligne */
+}
+
+.vehicle-card.offline {
+  border-left-color: var(--danger-color);  /* Ligne rouge pour hors ligne */
+}
+
+.vehicle-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-color);
+  margin-bottom: 10px;
+}
+
+.vehicle-info {
+  font-size: 14px;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vehicle-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 12px;
+}
+
+/* .status-online {
+  background-color: rgba(34, 197, 94, 0.1);
+ /* color: var(--success-color); */
+
+
+/* .status-offline {
+  background-color: rgba(239, 68, 68, 0.1); /* Rouge clair pour hors ligne */
+  /* color: var(--danger-color); Texte rouge pour hors ligne */
+/* } */
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dot-online {
+  background-color: var(--success-color);
+}
+
+.dot-offline {
+  background-color: var(--danger-color); /* Point rouge pour hors ligne */
+}
+
+/* Map Container Styles */
+.map-view {
+  flex: 1;
+  background-color: #fff;
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  box-shadow: var(--box-shadow);
+  height: 80vh; /* Augmenter la hauteur de la carte à 80vh pour plus de taille */
+}
+
+/* Custom Scrollbar */
 .vehicle-sidebar::-webkit-scrollbar {
   width: 8px;
 }
 
 .vehicle-sidebar::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
+  background: #F8FAFC;
 }
 
 .vehicle-sidebar::-webkit-scrollbar-thumb {
-  background: #d1d1d1;
-  border-radius: 10px;
+  background: var(--scrollbar-thumb-color);
+  border-radius: 6px;
 }
 
 .vehicle-sidebar::-webkit-scrollbar-thumb:hover {
-  background: #b1b1b1;
+  background: #A0AEC0;
 }
 
 /* Animation for markers */

@@ -6,37 +6,49 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     const role = localStorage.getItem("role");
+    const storedName = localStorage.getItem("userName");
 
-    if (token && role) {
-      setUser({ token, role });
-    }else {
+    // Debugging: Check what's retrieved from localStorage
+    console.log("AuthProvider useEffect - token:", token, "role:", role, "userName:", storedName);
+
+    if (token && role && storedName) {
+      setUser({ token, role, name: storedName });
+      setUserName(storedName);
+    } else {
       setUser(null);
+      setUserName(null);
     }
-  
 
-    setLoading(false); // important
+    setLoading(false);
   }, []);
 
-  const login = (token, role) => {
+  const login = (token, role, name) => {
+    // Debugging: Check login parameters
+    console.log("Login - token:", token, "role:", role, "name:", name);
+
     localStorage.setItem("token", token);
     localStorage.setItem("role", role);
-    setUser({ token, role });
+    localStorage.setItem("userName", name);
+    setUser({ token, role, name });
+    setUserName(name);
   };
 
   const logout = () => {
     localStorage.clear();
     setUser(null);
+    setUserName(null);
   };
 
   const isAuthenticated = !!user?.token;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated, loading }}>
-{children}
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated, loading, userName }}>
+      {children}
     </AuthContext.Provider>
   );
 };

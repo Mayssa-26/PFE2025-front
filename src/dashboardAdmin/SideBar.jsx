@@ -1,25 +1,26 @@
-import { useState } from 'react'; 
-import { useNavigate } from 'react-router-dom';
-import { FaMapMarked, FaHandSpock, FaSignOutAlt, FaCog } from 'react-icons/fa';
-import { MdDriveEta } from 'react-icons/md';
-import { Link } from 'react-router-dom';
-import { ThemeContext } from './ThemeContext';
-import { useContext } from 'react';
-import { useAuth } from '../Authentification/AuthContext';
-
-import './SideBar.css';
+import { useState, useContext } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { FaMapMarked, FaHandSpock, FaSignOutAlt, FaCog } from "react-icons/fa";
+import { MdDriveEta } from "react-icons/md";
+import { ThemeContext } from "./ThemeContext";
+import { useAuth } from "../Authentification/AuthContext";
+import { FaBars } from "react-icons/fa";
+import "./SideBar.css";
 
 const Sidebar = () => {
-  
+  const { userName, logout } = useAuth();
   const { darkMode, toggleDarkMode } = useContext(ThemeContext);
-  const {  logout } = useAuth();
   const navigate = useNavigate();
   
+  // Debugging: Check userName value
+  console.log("Sidebar - userName:", userName);
+
   const handleLogout = () => {
     logout();
-    navigate('/');
+    navigate("/");
   };
-  
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   const [showChauffeurSubMenu, setShowChauffeurSubMenu] = useState(false);
   const toggleChauffeurSubMenu = () => setShowChauffeurSubMenu(!showChauffeurSubMenu);
 
@@ -28,23 +29,25 @@ const Sidebar = () => {
 
   const [showSettingsSubMenu, setShowSettingsSubMenu] = useState(false);
   const toggleSettingsSubMenu = () => setShowSettingsSubMenu(!showSettingsSubMenu);
-
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
   return (
-    <div className={`dashboard-admin ${darkMode ? 'dark-mode' : ''}`}>
-      <div className="sidebar">
+    <div className={`dashboard-admin ${darkMode ? "dark-mode" : ""}`}>
+            <button className="toggle-btn" onClick={toggleSidebar}>
+        <FaBars />
+      </button>
+      <div className={`sidebar ${isSidebarOpen ? "show" : "hide"}`}>
         <div className="sidebar-header">
-          <h2 className="sidebar-title">
-            Manager <span>View</span>
-          </h2>
+          <h3 className="sidebar-title">{userName ? `${userName}` : "Vue de l'utilisateur"} <span>View</span></h3>
         </div>
 
         <div className="sidebar-content">
           <nav className="sidebar-nav">
-
             <div className="nav-item" onClick={toggleChauffeurSubMenu}>
               <FaHandSpock className="nav-icon" />
               ----Chauffeurs
-              <ul className={`sub-menu ${showChauffeurSubMenu ? 'open' : ''}`}>
+              <ul className={`sub-menu ${showChauffeurSubMenu ? "open" : ""}`}>
                 <li><Link to="/TousChauffeurs">Tous les Chauffeurs</Link></li>
                 <li><Link to="/StatistiquesChauffeurs">Statistiques chauffeurs</Link></li>
               </ul>
@@ -53,40 +56,32 @@ const Sidebar = () => {
             <div className="nav-item" onClick={toggleVoitureSubMenu}>
               <MdDriveEta className="nav-icon" />
               ----Véhicules
-              <ul className={`sub-menu ${showVoitureSubMenu ? 'open' : ''}`}>
+              <ul className={`sub-menu ${showVoitureSubMenu ? "open" : ""}`}>
                 <li><Link to="/ToutesVoitures">Tous les véhicules</Link></li>
-                <li><Link to="/VehiculesAvecCapteur">Véhicules avec capteur</Link>
-                
-                </li>
+                <li><Link to="/VehiculesAvecCapteur">Véhicules avec capteur</Link></li>
                 <li><Link to="/VehiculesSansCapteur">Véhicules sans capteur</Link></li>
               </ul>
             </div>
 
             <div className="nav-item">
-              <Link to="/map" className='color'>
+              <Link to="/map" className="color">
                 <FaMapMarked className="nav-icon" /> ----Carte
               </Link>
             </div>
-            
-            
 
             <div className="nav-item" onClick={toggleSettingsSubMenu}>
               <FaCog className="nav-icon" />
               ----Paramètres
-              <ul className={`sub-menu ${showSettingsSubMenu ? 'open' : ''}`}>
+              <ul className={`sub-menu ${showSettingsSubMenu ? "open" : ""}`}>
                 <li><Link to="/profil">Profil administrateur</Link></li>
-
-                {/* Préférences système sous-menu */}
                 <li>
                   Préférences système
                   <ul>
-                    <li onClick={toggleDarkMode} style={{cursor: "pointer"}}>
-                      Activer {darkMode ? 'Mode Clair' : 'Mode Sombre'}
+                    <li onClick={toggleDarkMode} style={{ cursor: "pointer" }}>
+                      Activer {darkMode ? "Mode Clair" : "Mode Sombre"}
                     </li>
                   </ul>
                 </li>
-
-                {/* Sécurité sous-menu */}
                 <li>
                   Sécurité
                   <ul>
@@ -94,11 +89,9 @@ const Sidebar = () => {
                     <li><Link to="/securite/modifier-email">Modifier email</Link></li>
                   </ul>
                 </li>
-
                 <li><Link to="/notifications-settings">Notifications</Link></li>
               </ul>
             </div>
-
           </nav>
         </div>
 
@@ -106,7 +99,14 @@ const Sidebar = () => {
           <FaSignOutAlt className="logout-icon" /> Se déconnecter
         </button>
       </div>
-    </div>
+      {isSidebarOpen && (
+          <div 
+            className="sidebar-overlay" 
+            onClick={toggleSidebar}
+          />
+        )}
+      </div>
+    
   );
 };
 

@@ -1,26 +1,26 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import "C:/stage/Test/frontTest/src/register/Register.css"
-import image from "C:/stage/Test/frontTest/public/gps.png";
+import PropTypes from "prop-types"; // Import PropTypes
+import "./Register.css";
 
-const Register = () => {
+const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) => {
   const process = window.process || { env: {} };
   const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
 
   const [formData, setFormData] = useState({
-    nom: "",
-    prenom: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    cin: "",
-    adresse: "",
-    nationalite: "",
-    dateNaissance: "",
-    NumTel: "",
-    role: "Admin", // Valeur par défaut
+    nom: initialData.nom || "",
+    prenom: initialData.prenom || "",
+    email: initialData.email || "",
+    password: initialData.password || "",
+    confirmPassword: initialData.password || "",
+    cin: initialData.cin || "",
+    adresse: initialData.adresse || "",
+    nationalite: initialData.nationalite || "",
+    dateNaissance: initialData.dateNaissance || "",
+    NumTel: initialData.numTel || "",
+    role: initialData.role || "Admin",
   });
-  
+
   const [message, setMessage] = useState("");
 
   const handleSubmit = async (e) => {
@@ -30,22 +30,33 @@ const Register = () => {
       setMessage("Le CIN doit contenir exactement 8 chiffres.");
       return;
     }
+    if (!/^\d{8}$/.test(formData.NumTel)) {
+      setMessage("Le numero de téléphone doit contenir exactement 8 chiffres.");
+      return;
+    }
 
-    try {
-      const response = await fetch(`${apiUrl}/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Erreur lors de l'inscription");
+    if (isEditMode) {
+      // Mode édition : appeler onSubmit avec les données du formulaire
+      onSubmit(formData);
+    } else {
+      // Mode inscription
+      try {
+        const response = await fetch(`${apiUrl}/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || "Erreur lors de l'inscription");
+        }
+
+        setMessage("Inscription réussie !");
+      } catch (error) {
+        setMessage(error.message);
       }
-
-      setMessage("Inscription réussie !");
-    } catch (error) {
-      setMessage(error.message);
     }
   };
 
@@ -60,13 +71,13 @@ const Register = () => {
   return (
     <div className="register-container">
       <div className="sregister-ignup-box">
-        <h2>Inscription</h2>
+        <h2>{isEditMode ? "Modifier l'administrateur" : "Inscription"}</h2>
 
         {message && <p className="register-message">{message}</p>}
 
         <form onSubmit={handleSubmit}>
           <div className="register-input-group">
-            <span>👤</span>
+            <span>👤Nom et prenom</span>
             <input
               className="input-small"
               type="text"
@@ -88,7 +99,7 @@ const Register = () => {
           </div>
 
           <div className="register-input-group">
-            <span>📧</span>
+            <span>📧 email</span>
             <input
               type="email"
               name="email"
@@ -98,20 +109,21 @@ const Register = () => {
               required
             />
           </div>
+
           <div className="register-input-group">
-            <span>🔑</span>
+            <span>🔑 mot de passe</span>
             <input
               type="password"
               name="password"
-              placeholder="mot de passe"
+              placeholder="Mot de passe"
               value={formData.password}
               onChange={handleChange}
-              required
+              required={!isEditMode} // Mot de passe facultatif en mode édition
             />
           </div>
 
           <div className="register-input-group">
-            <span>🏠</span>
+            <span>🏠adresse </span>
             <input
               className="input-large"
               type="text"
@@ -121,9 +133,10 @@ const Register = () => {
               onChange={handleChange}
               required
             />
-            </div>
-            <div className="register-input-group">
-            <span>🪪</span>
+          </div>
+
+          <div className="register-input-group">
+            <span>🪪 CIN</span>
             <input
               className="input-large"
               type="text"
@@ -131,11 +144,13 @@ const Register = () => {
               placeholder="CIN"
               value={formData.cin}
               onChange={handleChange}
+              disabled={isEditMode}
               required
             />
-            </div>
-            <div>
-            <span>📞</span>
+          </div>
+
+          <div className="register-input-group">
+            <span>📞 numero de téléphone</span>
             <input
               className="input-large"
               type="text"
@@ -148,7 +163,7 @@ const Register = () => {
           </div>
 
           <div className="register-input-group">
-            <span>📅</span>
+            <span>📅 Date de naissance</span>
             <input
               type="date"
               name="dateNaissance"
@@ -161,25 +176,57 @@ const Register = () => {
           <div className="register-input-group">
             <label>Rôle :</label>
             <select name="role" value={formData.role} onChange={handleChange}>
-              <option value="controller">Admin</option>
+              <option value="Admin">Admin</option>
             </select>
           </div>
 
-          <button type="submit" className="register-btn">
-            S'inscrire
-          </button>
+          <div className="form-actions">
+            <button type="submit" className="register-btn">
+              {isEditMode ? "Enregistrer" : "S'inscrire"}
+            </button>
+            {isEditMode && (
+              <button type="button" className="btn-cancel" onClick={onCancel}>
+                Annuler
+              </button>
+            )}
+          </div>
         </form>
 
-        <Link to="/" className="register-already-member">
-          Je suis déjà membre
-        </Link>
+        {!isEditMode && (
+          <Link to="/" className="register-already-member">
+            Je suis déjà membre
+          </Link>
+        )}
       </div>
 
-      <div className="register-image-box">
-        <img src={image} alt="Inscription" />
-      </div>
+      
     </div>
   );
+};
+
+// Ajout de la validation des props
+Register.propTypes = {
+  initialData: PropTypes.shape({
+    nom: PropTypes.string,
+    prenom: PropTypes.string,
+    email: PropTypes.string,
+    password: PropTypes.string,
+    cin: PropTypes.string,
+    adresse: PropTypes.string,
+    nationalite: PropTypes.string,
+    dateNaissance: PropTypes.string,
+    numTel: PropTypes.string,
+    role: PropTypes.string,
+  }),
+  onSubmit: PropTypes.func,
+  onCancel: PropTypes.func,
+  isEditMode: PropTypes.bool,
+};
+
+// Valeurs par défaut pour les props
+Register.defaultProps = {
+  initialData: {},
+  isEditMode: false,
 };
 
 export default Register;

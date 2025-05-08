@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import Navbar from "./NavBar";
 import Sidebar from "./SideBar";
@@ -7,150 +5,48 @@ import "./dashAdmin.css";
 import "./SideBar.css";
 import "./NavBar.css";
 import axios from "axios";
-import { ShoppingBag, BarChart2, PieChart, TrendingUp, Menu } from "lucide-react";
-import { FaSearch } from "react-icons/fa"; // Importez FaSearch
-import "./tous.css"; // Assurez-vous que ce fichier existe pour les styles de statut ovale et recherche
+import { ShoppingBag, BarChart2, PieChart, TrendingUp } from "lucide-react";
+import { FaSearch } from "react-icons/fa";
+import "./tous.css";
 import { useNavigate } from "react-router-dom";
-
+import jwt_decode from "jwt-decode";
+import { FaArrowRight } from 'react-icons/fa';
 const DashAdmin = () => {
-  
   const navigate = useNavigate();
-  const chartRef = useRef(null);
   const donutRef = useRef(null);
 
   const [stats, setStats] = useState({
-    chauffeurs: 0,
-    vehicules: 0,
+    vehiculesAvecCapteur: 0,
+    vehiculesSansCapteur: 0,
     telephones: 0,
     positions: 0,
   });
 
-  const [teamAData, setTeamAData] = useState([]);
-  const [teamBData, setTeamBData] = useState([]);
-  const [searchTerm, setSearchTerm] = useState(""); // État pour le terme de recherche
-  const [vehicles, setVehicles] = useState([]); // État pour stocker la liste des véhicules
-  const [loading, setLoading] = useState({ vehicles: false, positions: false });
+  const [adminStats, setAdminStats] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [vehiclesWithSensors, setVehiclesWithSensors] = useState([]);
+  const [loading, setLoading] = useState({ vehicles: false, adminStats: false });
   const [error, setError] = useState(null);
   const [currentPage] = useState(1);
-  const vehiclesPerPage = 5; // Vous pouvez ajuster le nombre par page
-  //const totalPages = Math.ceil(vehicles.length / vehiclesPerPage);
-  const currentVehicles = vehicles.slice((currentPage - 1) * vehiclesPerPage, currentPage * vehiclesPerPage);
+  const [offlineCount, setOfflineCount] = useState(0);
+  const vehiclesPerPage = 5;
+  const currentVehicles = vehiclesWithSensors.slice(
+    (currentPage - 1) * vehiclesPerPage,
+    currentPage * vehiclesPerPage
+  );
 
-  // Filtrer les véhicules en fonction du terme de recherche
-  const filteredVehicles = vehicles.filter(vehicle =>
-    vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.id.toString().includes(searchTerm) ||
+  const filteredVehicles = vehiclesWithSensors.filter((vehicle) =>
+    vehicle.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    vehicle.id?.toString().includes(searchTerm) ||
     (vehicle.groupId && vehicle.groupId.toString().includes(searchTerm))
   );
 
-  // Simulate API fetch pour les statistiques
   useEffect(() => {
-    // Fake backend call
-    setTimeout(() => {
-      setStats({
-        chauffeurs: 4,
-        vehicules: 4,
-        telephones: 5,
-        positions: 102,
-      });
-
-      setTeamAData([44, 58, 35, 53, 40, 48, 32, 46, 39, 52, 40]);
-      setTeamBData([37, 45, 42, 50, 35, 44, 30, 43, 34, 48, 38]);
-    }, 1000);
-  }, []);
-
-  useEffect(() => {
-    if (chartRef.current && teamAData.length && teamBData.length) {
-      const ctx = chartRef.current.getContext("2d");
-      drawLineChart(ctx, teamAData, teamBData);
-    }
     if (donutRef.current) {
       const ctx = donutRef.current.getContext("2d");
       drawDonutChart(ctx, stats);
     }
-  }, [teamAData, teamBData, stats]);
-
-  function drawLineChart(ctx, teamAData, teamBData) {
-    const width = ctx.canvas.width;
-    const height = ctx.canvas.height;
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "rgba(173, 216, 255, 0.2)";
-    ctx.fillRect(0, 0, width, height - 40);
-
-    ctx.strokeStyle = "#e0e0e0";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 6; i++) {
-      const y = 20 + (i * (height - 80)) / 5;
-      ctx.beginPath();
-      ctx.moveTo(50, y);
-      ctx.lineTo(width - 20, y);
-      ctx.stroke();
-    }
-
-    const days = ["Dec 01", "Dec 02", "Dec 03", "Dec 04", "Dec 05", "Dec 06", "Dec 07", "Dec 08", "Dec 09", "Dec 10", "Dec 11"];
-
-    ctx.fillStyle = "#666";
-    ctx.font = "10px Arial";
-    ctx.textAlign = "center";
-    const xStep = (width - 70) / (days.length - 1);
-    days.forEach((day, i) => ctx.fillText(day, 50 + i * xStep, height - 10));
-
-    ctx.textAlign = "right";
-    for (let i = 0; i < 6; i++) {
-      const value = 25 + i * 6;
-      const y = height - 60 - (i * (height - 80)) / 5;
-      ctx.fillText(value.toString(), 45, y);
-    }
-
-    ctx.textAlign = "left";
-    for (let i = 0; i < 6; i++) {
-      const value = 30 + i * 12;
-      const y = height - 60 - (i * (height - 80)) / 5;
-      ctx.fillText(value.toString(), width - 15, y);
-    }
-
-    ctx.strokeStyle = "#2196F3";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    teamAData.forEach((value, i) => {
-      const x = 50 + i * xStep;
-      const normalizedValue = (value - 25) / 30;
-      const y = height - 60 - normalizedValue * (height - 80);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, "rgba(33, 150, 243, 0.3)");
-    gradient.addColorStop(1, "rgba(33, 150, 243, 0.0)");
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    teamAData.forEach((value, i) => {
-      const x = 50 + i * xStep;
-      const normalizedValue = (value - 25) / 30;
-      const y = height - 60 - normalizedValue * (height - 80);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.lineTo(50 + (teamAData.length - 1) * xStep, height - 40);
-    ctx.lineTo(50, height - 40);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = "#4CAF50";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    teamBData.forEach((value, i) => {
-      const x = 50 + i * xStep;
-      const normalizedValue = (value - 25) / 30;
-      const y = height - 60 - normalizedValue * (height - 80);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-  }
+  }, [stats]);
 
   function drawDonutChart(ctx, stats) {
     const width = ctx.canvas.width;
@@ -158,19 +54,20 @@ const DashAdmin = () => {
     const centerX = width / 2;
     const centerY = height / 2;
     const radius = Math.min(width, height) / 2 - 20;
-
     ctx.clearRect(0, 0, width, height);
-
-    const total = stats.chauffeurs + stats.vehicules + stats.telephones + stats.positions;
+    const total =
+      stats.vehiculesAvecCapteur +
+      stats.vehiculesSansCapteur +
+      stats.telephones +
+      stats.positions;
     const data = [
-      { color: "#2196F3", value: stats.chauffeurs / total },
-      { color: "#4CAF50", value: stats.vehicules / total },
+      { color: "#4CAF50", value: stats.vehiculesAvecCapteur / total },
+      { color: "#F44336", value: stats.vehiculesSansCapteur / total },
       { color: "#FFC107", value: stats.telephones / total },
-      { color: "#F44336", value: stats.positions / total },
+      { color: "#2196F3", value: stats.positions / total },
     ];
-
     let startAngle = -0.25 * 2 * Math.PI;
-    data.forEach(segment => {
+    data.forEach((segment) => {
       ctx.beginPath();
       ctx.arc(
         centerX,
@@ -185,41 +82,87 @@ const DashAdmin = () => {
       startAngle += segment.value * 2 * Math.PI;
     });
   }
-  
-  const [offlineCount, setOfflineCount] = useState(0);
 
   useEffect(() => {
-    const fetchVehiclesData = async () => {
-      setLoading((prev) => ({ ...prev, vehicles: true }));
+    const fetchData = async () => {
+      setLoading((prev) => ({ ...prev, vehicles: true, adminStats: true }));
       setError(null);
       try {
-        const response = await axios.get("https://yepyou.treetronix.com/api/devices", {
-          headers: { Authorization: "Basic " + btoa("admin:admin") },
-        });
-        setVehicles(response.data);
-        const offlineVehicles = response.data.filter(v => v.status !== "online");
+        const token = localStorage.getItem("token");
+        let currentAdminId = null;
+        if (token) {
+          const decoded = jwt_decode(token);
+          currentAdminId = decoded.id;
+        }
+
+        // Fetch vehicles with sensors from /api/devices
+        const devicesResponse = await axios.get(
+          "https://yepyou.treetronix.com/api/devices",
+          {
+            headers: { Authorization: "Basic " + btoa("admin:admin") },
+          }
+        );
+        const vehiclesWithSensorsData = devicesResponse.data || [];
+        setVehiclesWithSensors(vehiclesWithSensorsData);
+
+        const vehiculesAvecCapteur = vehiclesWithSensorsData.filter(
+          (v) => v.hasSensor
+        ).length;
+        const offlineVehicles = vehiclesWithSensorsData.filter(
+          (v) => v.status !== "online"
+        );
         setOfflineCount(offlineVehicles.length);
 
-        // Ajoute une classe pulse temporairement pour attirer l'attention
+        // Fetch vehicles without sensors for the admin
+        const adminVehiclesResponse = await axios.get(
+          `/api/vehicules/admin/${currentAdminId}`
+        );
+        const vehiclesWithoutSensors =
+          adminVehiclesResponse.data.data[0]?.vehicules || [];
+        const vehiculesSansCapteur = vehiclesWithoutSensors.length; // All vehicles from this API are without sensors
+
+        // Update stats
+        setStats((prev) => ({
+          ...prev,
+          vehiculesAvecCapteur,
+          vehiculesSansCapteur,
+          telephones: vehiclesWithSensorsData.filter((v) => v.isPhone).length,
+          positions: vehiclesWithSensorsData.reduce(
+            (acc, v) => acc + (v.positions || 0),
+            0
+          ),
+        }));
+
+        // Update admin stats
+        setAdminStats([
+          {
+            adminId: currentAdminId,
+            adminName: `Admin ${currentAdminId}`,
+            vehiculesAvecCapteur,
+            vehiculesSansCapteur,
+          },
+        ]);
+
         if (offlineVehicles.length > 0) {
-          const badge = document.querySelector('.notification-badge');
+          const badge = document.querySelector(".notification-badge");
           if (badge) {
-            badge.classList.add('pulse');
-            setTimeout(() => badge.classList.remove('pulse'), 3000);
+            badge.classList.add("pulse");
+            setTimeout(() => badge.classList.remove("pulse"), 3000);
           }
         }
       } catch (error) {
-        console.error("Error fetching vehicles:", error);
-        setError("Erreur lors de la récupération des véhicules.");
+        console.error("Error fetching data:", error);
+        setError("Erreur lors de la récupération des données.");
       } finally {
-        setLoading((prev) => ({ ...prev, vehicles: false }));
+        setLoading((prev) => ({ ...prev, vehicles: false, adminStats: false }));
       }
     };
 
-    fetchVehiclesData();
-    const interval = setInterval(fetchVehiclesData, 300000); // Actualisation toutes les 5 minutes
+    fetchData();
+    const interval = setInterval(fetchData, 300000);
     return () => clearInterval(interval);
   }, []);
+
   return (
     <div className="dashboard-admin">
       <Sidebar />
@@ -229,41 +172,50 @@ const DashAdmin = () => {
           <div className="stats-cards">
             <div className="stat-card">
               <div className="stat-header">
-                <div className="stat-icon blue"><ShoppingBag size={24} /></div>
-                <div className="stat-badge green">+{stats.chauffeurs * 2}%</div>
+                <div className="stat-icon green">
+                  <ShoppingBag size={24} />
+                </div>
+                <div className="stat-badge blue">
+                  +{stats.vehiculesAvecCapteur * 2}%
+                </div>
               </div>
               <div className="stat-content">
-                <h2 className="stat-value">{stats.chauffeurs}</h2>
-                <p className="stat-label">Chauffeurs</p>
+                <h2 className="stat-value">{stats.vehiculesAvecCapteur}</h2>
+                <p className="stat-label">Véhicules avec capteur</p>
               </div>
             </div>
-
             <div className="stat-card">
               <div className="stat-header">
-                <div className="stat-icon yellow"><BarChart2 size={24} /></div>
-                <div className="stat-badge red">+{stats.vehicules * 3}%</div>
+                <div className="stat-icon red">
+                  <BarChart2 size={24} />
+                </div>
+                <div className="stat-badge yellow">
+                  +{stats.vehiculesSansCapteur * 3}%
+                </div>
               </div>
               <div className="stat-content">
-                <h2 className="stat-value">{stats.vehicules}</h2>
-                <p className="stat-label">Véhicules</p>
+                <h2 className="stat-value">{stats.vehiculesSansCapteur}</h2>
+                <p className="stat-label">Véhicules sans capteur</p>
               </div>
             </div>
-
             <div className="stat-card">
               <div className="stat-header">
-                <div className="stat-icon pink"><PieChart size={24} /></div>
-                <div className="stat-badge yellow">+{stats.telephones}%</div>
+                <div className="stat-icon yellow">
+                  <PieChart size={24} />
+                </div>
+                <div className="stat-badge green">+{stats.telephones}%</div>
               </div>
               <div className="stat-content">
                 <h2 className="stat-value">{stats.telephones}</h2>
                 <p className="stat-label">Téléphones</p>
               </div>
             </div>
-
             <div className="stat-card">
               <div className="stat-header">
-                <div className="stat-icon green"><TrendingUp size={24} /></div>
-                <div className="stat-badge blue">+{stats.positions / 3}%</div>
+                <div className="stat-icon blue">
+                  <TrendingUp size={24} />
+                </div>
+                <div className="stat-badge pink">+{stats.positions / 3}%</div>
               </div>
               <div className="stat-content">
                 <h2 className="stat-value">{stats.positions}</h2>
@@ -272,25 +224,55 @@ const DashAdmin = () => {
             </div>
           </div>
 
-          <div className="charts-container">
-            <div className="chart-card">
-              <div className="chart-header"><Menu className="chart-menu" size={20} /></div>
-              <canvas ref={chartRef} className="line-chart"></canvas>
-              <div className="chart-legend">
-                <div className="legend-item"><div className="legend-color team-a"></div><span>TEAM A</span></div>
-                <div className="legend-item"><div className="legend-color team-b"></div><span>TEAM B</span></div>
+          <div className="admin-stats-container">
+            {adminStats.length === 0 ? (
+              <p>Aucune donnée disponible</p>
+            ) : (
+              <div className="stats-schema-container">
+                <h3>Statistiques des Véhicules</h3>
+                <div className="stats-schema">
+                  {adminStats.map((admin) => (
+                    <div className="stats-item" key={admin.adminId}>
+                      <div className="stats-details">
+                        <div className="stat">
+                          <h5>Véhicules avec capteur</h5>
+                          <p>{admin.vehiculesAvecCapteur}</p>
+                        </div>
+                        <div className="stat">
+                          <h5>Véhicules sans capteur</h5>
+                          <p>{admin.vehiculesSansCapteur}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+          </div>
 
+          <div className="charts-container">
             <div className="chart-card donut-container">
               <canvas ref={donutRef} className="donut-chart"></canvas>
               <div className="donut-center">
                 <div className="donut-label">Total</div>
-                <div className="donut-value">{stats.chauffeurs + stats.vehicules + stats.telephones + stats.positions}</div>
+                <div className="donut-value">
+                  {stats.vehiculesAvecCapteur +
+                    stats.vehiculesSansCapteur +
+                    stats.telephones +
+                    stats.positions}
+                </div>
               </div>
             </div>
+            
+          </div>
 
-            <div className="search-container">
+          {error && (
+            <div className="alert error">
+              {error}
+              <button onClick={() => setError(null)}>×</button>
+            </div>
+          )}
+<div className="search-container">
               <FaSearch className="search-icon" />
               <input
                 type="text"
@@ -300,51 +282,54 @@ const DashAdmin = () => {
                 className="search-input"
               />
             </div>
-          </div>
-
-          {error && <div className="alert error">{error}<button onClick={() => setError(null)}>×</button></div>}
-
-          {loading.vehicles ? <div className="loading">Chargement des véhicules...</div> : (
-            filteredVehicles.length === 0 ? (
-              <div className="no-results">
-                Aucun véhicule trouvé {searchTerm && `pour "${searchTerm}"`}
-              </div>
-            ) : (
-              <>
-                <table className="vehicles-table">
-                  <thead>
-                    <tr>
-                      <th>Nom</th>
-                      <th>ID</th>
-                      <th>Groupe</th>
-                      <th>Status</th>
-                      
+          {loading.vehicles ? (
+            <div className="loading">Chargement des véhicules...</div>
+          ) : filteredVehicles.length === 0 ? (
+            <div className="no-results">
+              Aucun véhicule trouvé {searchTerm && `pour "${searchTerm}"`}
+            </div>
+          ) : (
+            <>
+              <table className="vehicles-table">
+                <thead>
+                  <tr>
+                    <th>Nom</th>
+                    <th>ID</th>
+                    <th>Groupe</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentVehicles.map((vehicle) => (
+                    <tr key={vehicle.id}>
+                      <td>{vehicle.name || "N/A"}</td>
+                      <td>{vehicle.id || "N/A"}</td>
+                      <td>{vehicle.groupId || "-"}</td>
+                      <td>
+                        <span
+                          className={`status-badge ${
+                            vehicle.status === "online"
+                              ? "online-oval"
+                              : "offline-oval"
+                          }`}
+                        >
+                          {vehicle.status || "inconnu"}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {currentVehicles.map(vehicle =><tr key={vehicle.id}>
-                        <td>{vehicle.name}</td>
-                        <td>{vehicle.id}</td>
-                        <td>{vehicle.groupId || "-"}</td>
-                        <td>
-                          <span className={`status-badge ${vehicle.status === 'online' ? 'online-oval' : 'offline-oval'}`}>
-                            {vehicle.status || 'inconnu'}
-                          </span>
-                        </td>
-                        
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-
-                
-                  <button onClick={() => navigate("/ToutesVoitures")} className="pagination-btn">Voir Plus</button>
-                  
-              </>
-            )
+                  ))}
+                </tbody>
+              </table>
+              <button
+                className="see-more-btn"
+                onClick={() => navigate("/VehiculesAvecCapteurSA")}
+              >
+                Voir Plus
+                <FaArrowRight className="icon" />
+              </button>
+            </>
           )}
         </div>
-
       </div>
     </div>
   );

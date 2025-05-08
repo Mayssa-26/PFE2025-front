@@ -1,5 +1,8 @@
+"use client";
+
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import jwt_decode from 'jwt-decode';
 import NavbarSuperAdmin from './NavBarSupAdmin';
 import SidebarSupAdmin from './SideBarSupAdmin';
 import '../dashboardAdmin/SideBar.css';
@@ -7,65 +10,100 @@ import '../dashboardAdmin/NavBar.css';
 import './tableVeh.css';
 
 const VehiculesSansCapteurSA = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [vehicules, setVehicules] = useState([]);
   const [filteredMarque, setFilteredMarque] = useState('');
-  const [filteredGroupe, setFilteredGroupe] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [marques, setMarques] = useState([]);
-  const [groupes, setGroupes] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [adminId, setAdminId] = useState(null);
+  const [adminGroup, setAdminGroup] = useState(null);
   const vehiculesPerPage = 5;
 
-  const fetchVehicules = async () => {
+  // Récupérer l'ID et le groupe de l'admin connecté
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      const decoded = jwt_decode(token);
+      setAdminId(decoded.id);
+      setAdminGroup(decoded.groupe); // Supposons que le groupe est stocké dans le token
+    }
+  }, []);
+
+  // Fonction de normalisation pour la comparaison
+  const normalizeString = (str) => str?.toLowerCase().replace(/\s|-/g, '');
+
+  const checkAndRemoveTraccarVehicles = async (vehiclesList) => {
     try {
+      const traccarResponse = await axios.get("https://yepyou.treetronix.com/api/devices", {
+        headers: {
+          Authorization: "Basic " + btoa("admin:admin"),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+  
+      const traccarVehicleNames = traccarResponse.data.map(v => normalizeString(v.name));
+      return vehiclesList.filter(v => !traccarVehicleNames.includes(normalizeString(v.immatriculation)));
+    } catch (error) {
+      console.error("Erreur Traccar:", error);
+      return vehiclesList;
+    }
+  };
+
+  const fetchVehicules = async () => {
+    if (!adminId) return;
+    
+    setLoading(true);
+    setError(null);
+    try {
+      // Ajout du paramètre adminId pour filtrer par groupe admin
       const res = await axios.get('/api/vehicules/getVehicules', {
         params: {
+          adminId, // Nouveau paramètre
           marque: filteredMarque,
-          search: searchTerm,
-          groupe: filteredGroupe
+          search: searchTerm
         }
       });
+
       if (Array.isArray(res.data)) {
-        setVehicules(res.data);
-        const uniqueMarques = [...new Set(res.data.map(v => v.marque))];
-        setMarques(uniqueMarques);
+        const filteredVehicles = await checkAndRemoveTraccarVehicles(res.data);
+        setVehicules(filteredVehicles);
+        setMarques([...new Set(filteredVehicles.map(v => v.marque))]);
       } else {
         setVehicules([]);
       }
     } catch (error) {
-      console.error('Erreur lors de la récupération des véhicules:', error);
+      console.error('Erreur:', error);
+      setError('Impossible de charger les véhicules');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const fetchGroupes = async () => {
-    try {
-      const res = await axios.get('/api/groupes');
-      setGroupes(res.data);
-    } catch (error) {
-      console.error("Erreur lors de la récupération des groupes :", error);
-    }
-  };
+  // Vérification périodique
+  useEffect(() => {
+    const interval = setInterval(fetchVehicules, 30000);
+    return () => clearInterval(interval);
+  }, [adminId]);
 
   useEffect(() => {
     fetchVehicules();
-  }, [searchTerm, filteredMarque, filteredGroupe]);
+  }, [adminId, searchTerm, filteredMarque]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filteredMarque, filteredGroupe]);
-
-  useEffect(() => {
-    fetchGroupes();
-  }, []);
+  }, [searchTerm, filteredMarque]);
 
   const filteredVehicules = vehicules.filter(v => {
     const matchesMarque = filteredMarque === '' || v.marque === filteredMarque;
-    const matchesGroupe = filteredGroupe === '' || v.proprietaire?._id === filteredGroupe;
     const search = searchTerm.toLowerCase();
     const matchesSearch =
       v.modele.toLowerCase().includes(search) ||
       v.immatriculation.toLowerCase().includes(search);
-    return matchesMarque && matchesGroupe && matchesSearch;
+    return matchesMarque && matchesSearch;
   });
 
   const totalPages = Math.ceil(filteredVehicules.length / vehiculesPerPage);
@@ -74,15 +112,24 @@ const VehiculesSansCapteurSA = () => {
     currentPage * vehiculesPerPage
   );
 
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
   return (
     <div className="dashboard-admin">
-      <SidebarSupAdmin />
+      <button className="toggle-btn" onClick={toggleSidebar}>
+        {isSidebarOpen ? "✕" : "☰"}
+      </button>
+      <SidebarSupAdmin isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+      
       <div className="main-content">
         <NavbarSuperAdmin />
         <div className="container2">
           <div className="header">
             <h2>Véhicules Sans Capteur</h2>
-            <p>Liste des véhicules enregistrés ne disposant pas de capteurs actifs.</p>
+            <p>Liste des véhicules de votre groupe ne disposant pas de capteurs actifs.</p>
+            {adminGroup && <p className="admin-group">Groupe: {adminGroup}</p>}
           </div>
 
           <div className="filter-bar">
@@ -102,50 +149,51 @@ const VehiculesSansCapteurSA = () => {
                 <option key={idx} value={marque}>{marque}</option>
               ))}
             </select>
-
-            <select
-              value={filteredGroupe}
-              onChange={e => setFilteredGroupe(e.target.value)}
-            >
-              <option value="">Tous les groupes</option>
-              {groupes.map((groupe, idx) => (
-                <option key={idx} value={groupe._id}>{groupe.nom}</option>
-              ))}
-            </select>
           </div>
 
-          <table className="vehicles-table">
-            <thead>
-              <tr>
-                <th>Marque</th>
-                <th>Modèle</th>
-                <th>Groupe</th>
-                <th>Immatriculation</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentVehicules.length ? (
-                currentVehicules.map((v, i) => (
-                  <tr key={i}>
-                    <td>{v.marque}</td>
-                    <td>{v.modele}</td>
-                    <td>{v.proprietaire?.nom || 'N/A'}</td>
-                    <td>{v.immatriculation}</td>
-                    <td>
-                      <span className={`status-badge ${v.status === 'online' ? 'online' : 'offline'}`}>
-                        {v.status || 'offline'}
-                      </span>
+          {error && (
+            <div className="alert error">
+              {error}
+              <button onClick={() => setError(null)}>×</button>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="loading">Chargement des véhicules...</div>
+          ) : (
+            <table className="vehicles-table">
+              <thead>
+                <tr>
+                  <th>Marque</th>
+                  <th>Modèle</th>
+                  <th>Immatriculation</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentVehicules.length ? (
+                  currentVehicules.map((v, i) => (
+                    <tr key={i}>
+                      <td>{v.marque}</td>
+                      <td>{v.modele}</td>
+                      <td>{v.immatriculation}</td>
+                      <td>
+                        <span className={`status-badge ${v.status === 'online' ? 'online' : 'offline'}`}>
+                          {v.status || 'offline'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" style={{ textAlign: 'center' }}>
+                      {adminId ? 'Aucun véhicule trouvé dans votre groupe' : 'Chargement...'}
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="5" style={{ textAlign: 'center' }}>Aucun véhicule trouvé</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          )}
 
           {totalPages > 1 && (
             <div className="pagination">

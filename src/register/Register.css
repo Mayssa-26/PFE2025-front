@@ -3,312 +3,204 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
-
-/* Main container */
-
-/* Registration box */
-.sregister-ignup-box {
-  width: 100%;
-  max-width: 500px;
-  min-width: 300px;
-  padding: 20px;
-  background: white;
-  border-radius: 15px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  text-align: center;
-  transition: 0.3s ease-in-out;
-  margin-top: -80px;
-}
-
-
 
 /* Main container */
 .register-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 90%;
-  max-width: 1200px; /* Empêcher d’être trop large */
-  height: 120vh;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 900px;
   background: linear-gradient(135deg, #eee5eb, #cecdec);
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  margin: auto;
-  margin-top: -20px;
-  flex-wrap: wrap; /* Permet aux éléments de s’adapter */
-  gap: 20px;}
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  margin: 0 auto;
+}
 
 /* Registration box */
-
+.sregister-ignup-box {
+  background: #ffffff;
+  width: 100%;
+  max-width: 600px;
+  padding: 25px;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
 
 .sregister-ignup-box:hover {
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
   transform: translateY(-5px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
 }
 
 /* Title */
 .sregister-ignup-box h2 {
-  font-size: 24px;  /* Increased font size */
+  font-size: 24px;
   font-weight: 700;
-  margin-bottom: 20px;
-  color: #230f49;
+  color: #1a0b3b;
+  margin-bottom: 15px;
+  letter-spacing: -0.3px;
+}
+
+/* Form message */
+.register-message {
+  color: #28a745;
+  font-weight: 500;
+  margin-bottom: 15px;
+  font-size: 13px;
+}
+
+/* Form */
+form {
+  display: grid;
+  gap: 15px;
 }
 
 /* Input group */
 .register-input-group {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 15px;
+  display: grid;
+  gap: 8px;
   text-align: left;
 }
 
 .register-input-group span {
   font-size: 14px;
-  font-weight: 500;
-  color: #230f49;
-  margin-bottom: 5px;
-}
-
-/* Input fields */
-.register-input-group input {
-  border: 2px solid #ddd;
-  background: #f9f9f9;
-  font-size: 14px;
-  padding: 12px;
-  color: #333;
-  border-radius: 8px;
-  width: 100%;
-  transition: all 0.3s;
-}
-
-.register-input-group input:focus {
-  border-color: #230f49;
-  background: #fff;
-}
-
-/* Two-column layout for name and address */
-.register-input-group.flex-group {
+  font-weight: 600;
+  color: #1a0b3b;
   display: flex;
-  gap: 10px;
-}
-
-.register-input-group.flex-group input {
-  width: 50%;
-}
-
-/* Submit button */
-.register-btn {
-  width: 100%;
-  padding: 12px;
-  background: linear-gradient(135deg, #230f49, #5a4287);
-  color: white;
-  font-size: 16px;
-  font-weight: bold;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease-in-out;  /* Added smooth transition */
-}
-
-.register-btn:hover {
-  background: linear-gradient(135deg, #5a4287, #230f49);
-  transform: scale(1.05);
-}
-
-/* Link to login */
-.register-already-member {
-  font-size: 14px;
-  margin-top: 15px;
-  display: block;
-  color: #230f49;
-  font-weight: bold;
-  text-decoration: none;
-  transition: 0.3s;
-}
-
-.register-already-member:hover {
-  text-decoration: underline;
-  color: #652bd2;
-}
-
-/* Responsive Design */
-@media screen and (max-width: 600px) {
-  .sregister-ignup-box{
-    padding: 25px;
-    max-width: 90%;
-  }
-
-  .register-input-group.flex-group {
-    flex-direction: column;
-  }
-
-  .register-input-group.flex-group input {
-    width: 100%;
-  }
-
-  .register-btn {
-    font-size: 14px;
-    padding: 10px;
-  }
-
-  /* Adjust title font size for smaller screens */
-  .sregister-ignup-box h2 {
-    font-size: 20px;
-  }
-  .register-image-box {
-    display: none; /* Cacher l’image sur les petits écrans */
-  }
-}
-
-.sregister-ignup-box h2 {
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: 20px;
-  color: #230f49;
-}
-.register-image-box {
-  flex: 1;
-  display: flex;
-  justify-content: center;
   align-items: center;
-  max-width: 40%;
-}
-
-.register-image-box img {
-  width: 100%;
-  max-width: 250px;
-  filter: drop-shadow(4px 4px 10px rgba(0, 0, 0, 0.2)); /* Effet de profondeur */
-}
-
-/* Input group */
-.register-input-group {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 15px;
-  text-align: left;
-}
-
-.register-input-group span {
-  font-size: 14px;
-  font-weight: 500;
-  color: #230f49;
-  margin-bottom: 5px;
+  gap: 6px;
 }
 
 /* Input fields */
-.register-input-group input {
-  border: 2px solid #ddd;
-  background: #f9f9f9;
+.register-input-group input,
+.register-input-group select {
+  border: 1px solid #e0e0e0;
+  background: #fafafa;
   font-size: 14px;
-  padding: 12px;
+  padding: 10px;
   color: #333;
   border-radius: 8px;
   width: 100%;
-  transition: all 0.3s;
+  transition: border-color 0.3s, background 0.3s, box-shadow 0.3s;
 }
 
-.register-input-group input:focus {
-  border-color: #230f49;
-  background: #fff;
+.register-input-group input:focus,
+.register-input-group select:focus {
+  border-color: #191258;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(107, 70, 193, 0.1);
+  outline: none;
 }
 
-/* Two-column layout for name and address */
-.register-input-group.flex-group {
-  display: flex;
+/* Two-column layout for name fields */
+.register-input-group:first-child {
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 
-.register-input-group.flex-group input {
-  width: 50%;
+.register-input-group:first-child input {
+  width: 100%;
 }
 
-/* Submit button */
-.register-btn {
-  width: 100%;
-  padding: 12px;
-  background: linear-gradient(135deg, #230f49, #4d1bab);
+/* Buttons */
+.register-btn, .btn-cancel {
+  padding: 10px;
+  background: linear-gradient(135deg, #151354, #4c2f8c);
   color: white;
-  font-size: 16px;
-  font-weight: bold;
+  font-size: 15px;
+  font-weight: 600;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  transition: 0.3s ease-in-out;
+  transition: transform 0.2s, background 0.3s, box-shadow 0.3s;
 }
 
-.register-btn:hover {
-  background: linear-gradient(135deg, #4d1bab, #230f49);
-  transform: scale(1.05);
+.register-btn:hover, .btn-cancel:hover {
+  background: linear-gradient(135deg, #171565, #3e349a);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(107, 70, 193, 0.3);
+}
+
+.btn-cancel {
+  background: #e2e8f0;
+  color: #1a0b3b;
+}
+
+.btn-cancel:hover {
+  background: #cbd5e1;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Form actions */
+.form-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 /* Link to login */
 .register-already-member {
-  font-size: 14px;
+  font-size: 13px;
   margin-top: 15px;
-  display: block;
-  color: #230f49;
-  font-weight: bold;
+  display: inline-block;
+  color: #130e34;
+  font-weight: 600;
   text-decoration: none;
-  transition: 0.3s;
+  transition: color 0.3s, text-decoration 0.3s;
 }
 
 .register-already-member:hover {
+  color: #1b135d;
   text-decoration: underline;
-  color: #4d1bab;
 }
 
-/* Responsive Design */
-@media screen and (max-width: 600px) {
-  .register-box {
-    padding: 25px;
-    max-width: 90%;
-  }
-
-  .register-input-group.flex-group {
-    flex-direction: column;
-  }
-
-  .register-input-group.flex-group input {
-    width: 100%;
-  }
-
-  .register-btn {
-    font-size: 14px;
-    padding: 10px;
-  }
-}
-.register-input-group select {
-  width: 100%;
-  padding: 12px 20px;
-  padding-left: 40px; /* espace pour l'icône */
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  font-size: 16px;
-  background-color: #f9f9f9;
-  color: #333;
-  transition: all 0.3s ease;
-}
-
-.register-input-group select:focus {
-  outline: none;
-  border-color: #230f49;
-  background-color: #fff;
-}
-
+/* Select options */
 .register-input-group select option {
   padding: 10px;
-  background-color: #fff;
+  background: #ffffff;
   color: #333;
-}
-
-.register-input-group select option:hover {
-  background-color: #f3f4f6;
 }
 
 .register-input-group select:disabled {
-  background-color: #e0e0e0;
+  background: #e9ecef;
   cursor: not-allowed;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+  .register-container {
+    min-height: auto;
+    padding: 10px;
+  }
+
+  .sregister-ignup-box {
+    max-width: 100%;
+    padding: 20px;
+  }
+
+  .register-input-group:first-child {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .register-btn, .btn-cancel {
+    font-size: 14px;
+    padding: 10px;
+  }
+}
+
+/* Modal-specific styles */
+.edit-modal .register-container {
+  background: transparent;
+  box-shadow: none;
+  min-height: auto;
 }

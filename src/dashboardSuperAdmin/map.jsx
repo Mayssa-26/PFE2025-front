@@ -146,7 +146,7 @@ function VehicleRouteSA() {
             fontWeight: 'bold',
             boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
             zIndex: 999,
-            color: 'black',
+            color: 'white',
             marginRight: '20px',
           }}
         >

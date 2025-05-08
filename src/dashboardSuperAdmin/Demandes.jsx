@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import "./dashSuperAdmin.css";
 import SidebarSupAdmin from "./SideBarSupAdmin";
-import Navbar from "../dashboardAdmin/NavBar";
+import NavbarSuperAdmin from "./NavBarSupAdmin";
 import "./DemandesTable.css";
 import { HiOutlineCheckCircle, HiOutlineXCircle } from "react-icons/hi";
 
 const DemandesTable = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [demandes, setDemandes] = useState([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -13,20 +14,47 @@ const DemandesTable = () => {
 
   const updateStatus = async (userId, status) => {
     try {
-      const response = await fetch(`http://localhost:8000/updateStatus/${userId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
+      let response;
+      if (status === "Approuvée") {
+        response = await fetch(`http://localhost:8000/api/demandes/${userId}/accepter`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            // Add Authorization header if required, e.g., Bearer token
+            // "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          },
+        });
+      } else if (status === "Rejetée") {
+        // Prompt for rejection reason
+        const raison = window.prompt("Veuillez entrer la raison du refus :");
+        if (!raison) {
+          alert("Une raison est requise pour rejeter la demande.");
+          return;
+        }
 
-      if (!response.ok) {
-        console.error(`Erreur HTTP: ${response.status}`);
-        throw new Error("Erreur lors de la mise à jour du statut");
+        response = await fetch(`http://localhost:8000/api/demandes/${userId}/refuser`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            // Add Authorization header if required
+            // "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ raison }),
+        });
       }
 
-      fetchDemandes();
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error(`Erreur HTTP: ${response.status}`, errorData);
+        throw new Error(errorData.message || "Erreur lors de la mise à jour du statut");
+      }
+
+      const result = await response.json();
+      console.log(result.message);
+      fetchDemandes(); // Refresh the demands list
     } catch (error) {
       console.error("Erreur:", error);
+      alert("Une erreur s'est produite : " + error.message);
     }
   };
 
@@ -65,12 +93,18 @@ const DemandesTable = () => {
   useEffect(() => {
     fetchDemandes();
   }, []);
-
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
   return (
     <div className="dashboard-admin">
-      <SidebarSupAdmin />
+      <button className="toggle-btn" onClick={toggleSidebar}>
+        {isSidebarOpen ? "✕" : "☰"}
+      </button>
+            <SidebarSupAdmin isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+            
       <div className="main-content">
-        <Navbar className="navbar" />
+        <NavbarSuperAdmin className="navbar" />
         <div className="container2">
           <div className="header">
             <div>
@@ -81,7 +115,8 @@ const DemandesTable = () => {
 
           <div className="status-select">
             <label htmlFor="statusFilter">Filtrer par statut: </label>
-            <select className="status-select"
+            <select
+              className="status-select"
               id="statusFilter"
               value={statusFilter}
               onChange={(e) => {
@@ -113,14 +148,16 @@ const DemandesTable = () => {
                   <td>{demande.prenom}</td>
                   <td>{demande.email}</td>
                   <td>
-                    <span className={`status-badge ${
-                      demande.status === 'enAttente'
-                        ? 'enAttente-oval'
-                        : demande.status === 'Rejetée'
-                        ? 'Rejetée-oval'
-                        : 'Approuvée-oval'
-                    }`}>
-                      {demande.status || 'inconnu'}
+                    <span
+                      className={`status-badge ${
+                        demande.status === "enAttente"
+                          ? "enAttente-oval"
+                          : demande.status === "Rejetée"
+                          ? "Rejetée-oval"
+                          : "Approuvée-oval"
+                      }`}
+                    >
+                      {demande.status || "inconnu"}
                     </span>
                   </td>
                   <td>
@@ -140,12 +177,13 @@ const DemandesTable = () => {
             </tbody>
           </table>
 
-          {/* Pagination controls */}
           <div className="pagination">
             <button onClick={goToPrevPage} disabled={currentPage === 1}>
               Précédent
             </button>
-            <span>{currentPage} / {totalPages}</span>
+            <span>
+              {currentPage} / {totalPages}
+            </span>
             <button onClick={goToNextPage} disabled={currentPage === totalPages}>
               Suivant
             </button>

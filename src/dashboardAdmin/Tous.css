@@ -36,7 +36,7 @@
   display: inline-flex;
   align-items: center;
   padding: 8px 15px;
-  background-color: #0d1f2f;
+  background-color: #102638;
   color: white;
   border: none;
   border-radius: 4px;
@@ -48,7 +48,22 @@
 }
 
 .btn-back:hover {
-  background-color: #0b7dda;
+  background-color: #0e0e3b;
+}
+.action-btn{
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 15px;
+  background-color: #162431;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  font-size: 14px;
+  margin-bottom: 15px;
+  transition: background-color 0.3s;
+
 }
 
 .btn-back::before {
@@ -108,9 +123,9 @@
   gap: 200px;
 }
 
-.pagination button {
+.btn00 {
   padding: 8px 15px;
-  background-color: #f5f7fa;
+  background-color: #1b1646;
   border: 1px solid #e0e3e8;
   border-radius: 4px;
   cursor: pointer;
@@ -118,7 +133,7 @@
 }
 
 .pagination button:hover:not(:disabled) {
-  background-color: #e0e3e8;
+  background-color: #1a103e;
 }
 
 .pagination button:disabled {
@@ -128,7 +143,7 @@
 
 .pagination span {
   padding: 8px 15px;
-  background-color: #eef2f5;
+  background-color: #e7edf1;
   color: rgb(32, 27, 57);
   border-radius: 4px;
 }
@@ -152,7 +167,7 @@
 }
 
 .modal-content {
-  background-color: white;
+  background-color: rgb(248, 248, 248);
   padding: 25px;
   border-radius: 8px;
   width: 100%;
@@ -215,23 +230,23 @@
 }
 
 .btn-primary {
-  background-color: #4CAF50;
+  background-color: #151145;
   color: white;
   border: none;
 }
 
 .btn-primary:hover {
-  background-color: #45a049;
+  background-color: #1a1048;
 }
 
 .btn-secondary {
-  background-color: #f5f7fa;
+  background-color: #100d34;
   color: #f8f4f4;
   border: 1px solid #e0e3e8;
 }
 
 .btn-secondary:hover {
-  background-color: #e0e3e8;
+  background-color: #0a1934;
 }
 
 /* Spinner */

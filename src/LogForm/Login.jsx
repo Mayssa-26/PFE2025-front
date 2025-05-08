@@ -22,13 +22,18 @@ const Login = () => {
         }),
       });
 
+      // Log de la réponse serveur
+      console.log('Réponse serveur:', response);
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Erreur de serveur : ${errorText}`);
       }
 
       const data = await response.json();
-      login(data.token, data.role); // Store token and role
+      console.log('Données reçues:', data); // Log des données reçues du back-end
+
+      login(data.token, data.role, data.name); // Store token and role
 
       // Redirection en fonction du rôle
       if (data.role === "Admin") {

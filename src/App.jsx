@@ -15,7 +15,7 @@ import OfflineVehicles from "./dashboardAdmin/OfflineVeh.jsx";
 import { ThemeProvider } from "./dashboardAdmin/ThemeContext.jsx";
 import './index.css';
 import DashSuperAdmin from "./dashboardSuperAdmin/dashSuperAdmin.jsx";
-import VehiculesSansCapteur from "./dashboardSuperAdmin/VehSansCapteur.jsx";
+import VehiculesSansCapteur from "./dashboardAdmin/VehSansCapteur.jsx";
 import VehiculesSansCapteurSA from "./dashboardSuperAdmin/VehSansCapteur.jsx";
 import VehCapSupAdmin from "./dashboardSuperAdmin/VehCapteurs.jsx";
 import VehicleRouteSA from "./dashboardSuperAdmin/map.jsx";
@@ -40,9 +40,9 @@ function App() {
             } />
             <Route path="/registerCar" element={<PrivateRoute><RegisterCar /></PrivateRoute>} />
             <Route path="/VehiculesAvecCapteur" element={<PrivateRoute><VehCap /></PrivateRoute>} />
-            <Route path="/VehiculesSansCapteur" element={<PrivateRoute><VehiculesSansCapteur /></PrivateRoute>} />
             <Route path="/VehiculesAvecCapteurSA" element={<PrivateRoute><VehCapSupAdmin /></PrivateRoute>} />
             <Route path="/VehiculesSansCapteurSA" element={<PrivateRoute><VehiculesSansCapteurSA /></PrivateRoute>} />
+            <Route path="/VehiculesSansCapteur" element={<PrivateRoute><VehiculesSansCapteur /> </PrivateRoute>} />
             <Route path="/demandes" element={<DemandesTable />} />
             <Route path="/map" element={<VehicleRoute />} />
             <Route path="/trajet" element={<StaticRouteMap />} />

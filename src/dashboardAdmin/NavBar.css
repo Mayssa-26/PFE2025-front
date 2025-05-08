@@ -28,6 +28,7 @@
   padding: 8px;
   border-radius: 50%;
   transition: background-color 0.2s;
+  left: 400px;
 }
 
 .notification-icon:hover {
@@ -54,7 +55,7 @@
 .notification-tooltip {
   position: absolute;
   top: 100%;
-  right: 0;
+  right: 20px;
   background-color: #333;
   color: white;
   padding: 8px 12px;
