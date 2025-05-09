@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&display=swap');
 
+
 /* Généralités de la Sidebar */
 .sidebar {
   width: 250px;
@@ -101,7 +102,7 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  margin-top: 220px;
+  margin-top: 150px;
 }
 
 .logout-button:hover {
@@ -127,7 +128,6 @@
 .color{
   color: #f1f1f1;
 }
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&display=swap');
 
 .sidebar-header {
   background: linear-gradient(135deg, #1b23444f, #426e912e);
@@ -178,7 +178,7 @@
     margin-top: 100px; /* ajustement mobile */
     background-color: #2f2f5e;
     padding: 10px;
-    margin-top: 220px;
+    margin-top: 150px;
   }
 }
 

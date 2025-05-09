@@ -5,9 +5,12 @@ import axios from 'axios';
 import jwt_decode from 'jwt-decode';
 import NavbarSuperAdmin from './NavBarSupAdmin';
 import SidebarSupAdmin from './SideBarSupAdmin';
+import { Link, useNavigate } from 'react-router-dom'; // Importer useNavigate
+//import { FiEdit, FiTrash2 } from 'react-icons/fi';
 import '../dashboardAdmin/SideBar.css';
 import '../dashboardAdmin/NavBar.css';
 import './tableVeh.css';
+
 
 const VehiculesSansCapteurSA = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -20,15 +23,17 @@ const VehiculesSansCapteurSA = () => {
   const [error, setError] = useState(null);
   const [adminId, setAdminId] = useState(null);
   const [adminGroup, setAdminGroup] = useState(null);
+  const [showDeletePopup, setShowDeletePopup] = useState(false); // État pour le popup
+  const [vehicleToDelete, setVehicleToDelete] = useState(null); // Véhicule à supprimer
   const vehiculesPerPage = 5;
-
+  
   // Récupérer l'ID et le groupe de l'admin connecté
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
       const decoded = jwt_decode(token);
       setAdminId(decoded.id);
-      setAdminGroup(decoded.groupe); // Supposons que le groupe est stocké dans le token
+      setAdminGroup(decoded.groupe);
     }
   }, []);
 
@@ -59,10 +64,9 @@ const VehiculesSansCapteurSA = () => {
     setLoading(true);
     setError(null);
     try {
-      // Ajout du paramètre adminId pour filtrer par groupe admin
       const res = await axios.get('/api/vehicules/getVehicules', {
         params: {
-          adminId, // Nouveau paramètre
+          adminId,
           marque: filteredMarque,
           search: searchTerm
         }
@@ -83,9 +87,8 @@ const VehiculesSansCapteurSA = () => {
     }
   };
 
-  // Vérification périodique
   useEffect(() => {
-    const interval = setInterval(fetchVehicules, 30000);
+    const interval = setInterval(fetchVehicules, 60000);
     return () => clearInterval(interval);
   }, [adminId]);
 
@@ -96,6 +99,21 @@ const VehiculesSansCapteurSA = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filteredMarque]);
+
+  // Fonction pour supprimer un véhicule
+  const handleDelete = async () => {
+    try {
+      await axios.delete(`/api/vehicules/${vehicleToDelete._id}`);
+      setVehicules(vehicules.filter(v => v._id !== vehicleToDelete._id));
+      setShowDeletePopup(false);
+      setVehicleToDelete(null);
+      setError(null);
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      setError('Impossible de supprimer le véhicule');
+      setShowDeletePopup(false);
+    }
+  };
 
   const filteredVehicules = vehicules.filter(v => {
     const matchesMarque = filteredMarque === '' || v.marque === filteredMarque;
@@ -139,7 +157,6 @@ const VehiculesSansCapteurSA = () => {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
-
             <select
               value={filteredMarque}
               onChange={e => setFilteredMarque(e.target.value)}
@@ -149,6 +166,13 @@ const VehiculesSansCapteurSA = () => {
                 <option key={idx} value={marque}>{marque}</option>
               ))}
             </select>
+          </div>
+
+          {/* Bouton Ajouter */}
+          <div className="add-vehicle-btn">
+            <Link to="/AjouterVehicule" className="link">
+             <button className="btn-add">Ajouter un véhicule</button>
+            </Link>
           </div>
 
           {error && (
@@ -168,6 +192,7 @@ const VehiculesSansCapteurSA = () => {
                   <th>Modèle</th>
                   <th>Immatriculation</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -182,17 +207,65 @@ const VehiculesSansCapteurSA = () => {
                           {v.status || 'offline'}
                         </span>
                       </td>
+                      <td>
+                        <div className="action-buttons">
+                          <Link
+                          className="action-icon delete"
+                            to="/AjouterVehicule"
+                            state={{ vehicle: v }} // Passer les données du véhicule
+                            
+                          >
+                           ✏️
+                          </Link>
+                          <button
+                            className="action-icon delete"
+                            onClick={() => {
+                              setVehicleToDelete(v);
+                              setShowDeletePopup(true);
+                            }}
+                          >
+                           🗑️
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" style={{ textAlign: 'center' }}>
+                    <td colSpan="5" style={{ textAlign: 'center' }}>
                       {adminId ? 'Aucun véhicule trouvé dans votre groupe' : 'Chargement...'}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          )}
+
+          {/* Popup de confirmation de suppression */}
+          {showDeletePopup && (
+            <div className="popup-overlay">
+              <div className="popup-content">
+                <h3>Confirmer la suppression</h3>
+                <p>
+                  Êtes-vous sûr de vouloir supprimer le véhicule{' '}
+                  <strong>{vehicleToDelete?.marque} {vehicleToDelete?.modele}</strong> ({vehicleToDelete?.immatriculation}) ?
+                </p>
+                <div className="popup-actions">
+                  <button
+                    className="popup-btn confirm"
+                    onClick={handleDelete}
+                  >
+                    Confirmer
+                  </button>
+                  <button
+                    className="popup-btn cancel"
+                    onClick={() => setShowDeletePopup(false)}
+                  >
+                    ❌ Annuler
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {totalPages > 1 && (
@@ -203,11 +276,9 @@ const VehiculesSansCapteurSA = () => {
               >
                 Précédent
               </button>
-
               <span className="current-page">
                 {currentPage} / {totalPages}
               </span>
-
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}

@@ -4,6 +4,7 @@ import SidebarSupAdmin from "./SideBarSupAdmin";
 import NavbarSuperAdmin from "./NavBarSupAdmin";
 import "./DemandesTable.css";
 import { HiOutlineCheckCircle, HiOutlineXCircle } from "react-icons/hi";
+import GroupAssignmentPopup from "./GroupAssignmentPopup";
 
 const DemandesTable = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -11,8 +12,12 @@ const DemandesTable = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const demandesParPage = 3;
+  
+  // For the popup
+  const [showPopup, setShowPopup] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState(null);
 
-  const updateStatus = async (userId, status) => {
+  const updateStatus = async (userId, status, nomComplet) => {
     try {
       let response;
       if (status === "Approuvée") {
@@ -24,6 +29,25 @@ const DemandesTable = () => {
             // "Authorization": `Bearer ${localStorage.getItem("token")}`,
           },
         });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error(`Erreur HTTP: ${response.status}`, errorData);
+          throw new Error(errorData.message || "Erreur lors de la mise à jour du statut");
+        }
+
+        const result = await response.json();
+        console.log(result.message);
+        
+        // Show popup to assign group to the newly created admin
+        if (result.idNewAdmin) {
+          setSelectedAdmin({
+            id: result.idNewAdmin._id,
+            name: nomComplet
+          });
+          setShowPopup(true);
+        }
+        
       } else if (status === "Rejetée") {
         // Prompt for rejection reason
         const raison = window.prompt("Veuillez entrer la raison du refus :");
@@ -41,16 +65,17 @@ const DemandesTable = () => {
           },
           body: JSON.stringify({ raison }),
         });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error(`Erreur HTTP: ${response.status}`, errorData);
+          throw new Error(errorData.message || "Erreur lors de la mise à jour du statut");
+        }
+
+        const result = await response.json();
+        console.log(result.message);
       }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error(`Erreur HTTP: ${response.status}`, errorData);
-        throw new Error(errorData.message || "Erreur lors de la mise à jour du statut");
-      }
-
-      const result = await response.json();
-      console.log(result.message);
       fetchDemandes(); // Refresh the demands list
     } catch (error) {
       console.error("Erreur:", error);
@@ -93,15 +118,22 @@ const DemandesTable = () => {
   useEffect(() => {
     fetchDemandes();
   }, []);
+  
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
+  
+  const closePopup = () => {
+    setShowPopup(false);
+    setSelectedAdmin(null);
+  };
+  
   return (
     <div className="dashboard-admin">
       <button className="toggle-btn" onClick={toggleSidebar}>
         {isSidebarOpen ? "✕" : "☰"}
       </button>
-            <SidebarSupAdmin isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+      <SidebarSupAdmin isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
             
       <div className="main-content">
         <NavbarSuperAdmin className="navbar" />
@@ -160,10 +192,15 @@ const DemandesTable = () => {
                       {demande.status || "inconnu"}
                     </span>
                   </td>
+                  {demande.status === "enAttente" && (
                   <td>
                     <HiOutlineCheckCircle
                       className="icon approve-icon"
-                      onClick={() => updateStatus(demande._id, "Approuvée")}
+                      onClick={() => updateStatus(
+                        demande._id, 
+                        "Approuvée", 
+                        `${demande.prenom} ${demande.nom}`
+                      )}
                       title="Approuver"
                     />
                     <HiOutlineXCircle
@@ -171,7 +208,7 @@ const DemandesTable = () => {
                       onClick={() => updateStatus(demande._id, "Rejetée")}
                       title="Rejeter"
                     />
-                  </td>
+                  </td>)}
                 </tr>
               ))}
             </tbody>
@@ -190,6 +227,14 @@ const DemandesTable = () => {
           </div>
         </div>
       </div>
+      
+      {/* Group Assignment Popup */}
+      <GroupAssignmentPopup 
+        isOpen={showPopup}
+        onClose={closePopup}
+        adminId={selectedAdmin?.id}
+        adminName={selectedAdmin?.name}
+      />
     </div>
   );
 };

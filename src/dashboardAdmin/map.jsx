@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { GoogleMap, LoadScript, Marker } from '@react-google-maps/api';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import jwt_decode from 'jwt-decode';
 import './Map.css';
 
 const containerStyle = {
@@ -16,6 +17,10 @@ const GOOGLE_MAPS_API_KEY = 'AIzaSyDNX04w1kGf_a6P7UkxNYAkjYS57bj_p34';
 function VehicleRoute() {
   const [positions, setPositions] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [adminId, setAdminId] = useState(null);
+  const [adminGroupName, setAdminGroupName] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [error, setError] = useState(null);
   const mapCenterRef = useRef({ lat: 36.8, lng: 10.18 });
   const mapRef = useRef(null);
   const googleRef = useRef(null);
@@ -27,64 +32,146 @@ function VehicleRoute() {
   const wsRef = useRef(null);
   const markerRefs = useRef({});
 
+  // WebSocket pour les positions en temps réel
   useEffect(() => {
     wsRef.current = new WebSocket('ws://localhost:8080');
 
-    wsRef.current.onopen = () => {
-      console.log('WebSocket connecté');
-    };
-
+    wsRef.current.onopen = () => console.log('WebSocket connecté');
     wsRef.current.onmessage = (event) => {
       const data = JSON.parse(event.data);
       const { deviceId, latitude, longitude } = data;
-      console.log("Position reçue :", data);
-
-      setPositions((prevPositions) => {
-        const index = prevPositions.findIndex((pos) => pos.deviceId === deviceId);
+      setPositions((prev) => {
+        const index = prev.findIndex((pos) => pos.deviceId === deviceId);
         if (index !== -1) {
-          const updated = [...prevPositions];
+          const updated = [...prev];
           updated[index] = { ...updated[index], latitude, longitude };
           return updated;
-        } else {
-          return [...prevPositions, { deviceId, latitude, longitude }];
         }
+        return [...prev, { deviceId, latitude, longitude }];
       });
-
       if (markerRefs.current[deviceId]) {
         animateMarker(markerRefs.current[deviceId], latitude, longitude);
       }
     };
+    wsRef.current.onclose = () => console.log('WebSocket déconnecté');
+    wsRef.current.onerror = (error) => console.error('WebSocket error:', error);
 
-    wsRef.current.onclose = () => {
-      console.log('WebSocket déconnecté');
-    };
+    return () => wsRef.current?.close();
+  }, []);
 
-    wsRef.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+  // Récupération des informations de l'admin
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/');
+      return;
+    }
 
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+    try {
+      const decoded = jwt_decode(token);
+      setAdminId(decoded.id);
+      setIsAuthenticated(true);
+
+      // Récupérer le groupe de l'admin via l'API
+      const fetchAdminGroup = async () => {
+        try {
+          const response = await axios.get(`api/vehicules/admin/${decoded.id}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (response.data?.success) {
+            const groupData = response.data.data[0] || response.data.data;
+            const groupName = groupData?.nom || groupData?.name || groupData?.groupName;
+
+            if (groupName) {
+              setAdminGroupName(groupName);
+            } else {
+              setError(`Group name not found in response for admin ${decoded.id}`);
+            }
+          } else {
+            setError(response.data?.message || `No group assigned to admin ${decoded.id}`);
+          }
+        } catch (apiError) {
+          console.error('Error fetching admin group:', apiError);
+          setError(`Failed to fetch group: ${apiError.response?.data?.message || apiError.message}`);
+        }
+      };
+
+      fetchAdminGroup();
+    } catch (tokenError) {
+      console.error('Erreur token:', tokenError);
+      localStorage.removeItem('token');
+      navigate('/login');
+    }
+  }, [navigate]);
+
+  // Récupération des véhicules depuis Traccar
+  useEffect(() => {
+    if (!adminGroupName || !isAuthenticated) return;
+
+    const fetchVehiclesFromTraccar = async () => {
+      setError(null);
+
+      try {
+        // 1. Récupérer tous les groupes depuis Traccar
+        const groupsResponse = await axios.get('https://yepyou.treetronix.com/api/groups', {
+          headers: {
+            Authorization: 'Basic ' + btoa('admin:admin'),
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+        });
+
+        // 2. Trouver le groupe correspondant exactement au groupe de l'admin
+        const matchedGroup = groupsResponse.data.find(
+          (group) => group.name.toLowerCase() === adminGroupName.toLowerCase()
+        );
+
+        if (!matchedGroup) {
+          setVehicles([]);
+          setError(`Aucun groupe nommé "${adminGroupName}" trouvé dans Traccar`);
+          return;
+        }
+
+        // 3. Récupérer uniquement les véhicules de ce groupe spécifique
+        const devicesResponse = await axios.get('https://yepyou.treetronix.com/api/devices', {
+          params: {
+            groupId: matchedGroup.id,
+          },
+          headers: {
+            Authorization: 'Basic ' + btoa('admin:admin'),
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+        });
+
+        // 4. Mapper les véhicules
+        const mappedVehicles = devicesResponse.data
+          .filter((device) => device.groupId === matchedGroup.id)
+          .map((device) => ({
+            id: device.id,
+            name: device.name,
+            uniqueId: device.uniqueId,
+            status: device.status,
+            groupName: adminGroupName,
+          }));
+
+        setVehicles(mappedVehicles);
+
+        if (mappedVehicles.length === 0) {
+          setError(`Aucun véhicule trouvé dans le groupe "${adminGroupName}"`);
+        }
+      } catch (err) {
+        console.error('Erreur API Traccar:', err);
+        setError(err.response?.data?.message || 'Erreur de chargement des véhicules depuis Traccar');
+        setVehicles([]);
       }
     };
-  }, []);
 
-  const fetchVehicles = () => {
-    axios.get('https://yepyou.treetronix.com/api/devices', {
-      auth: { username: 'admin', password: 'admin' },
-    })
-      .then((response) => {
-        setVehicles(response.data);
-      })
-      .catch((error) => {
-        console.error('Erreur lors du chargement des véhicules:', error);
-      });
-  };
-
-  useEffect(() => {
-    fetchVehicles();
-  }, []);
+    fetchVehiclesFromTraccar();
+  }, [adminGroupName, isAuthenticated]);
 
   const handleVehicleClick = (vehicleId) => {
     setSelectedVehicleId(vehicleId);
@@ -132,30 +219,33 @@ function VehicleRoute() {
     googleRef.current = window.google;
   };
 
+  // Filtrer les véhicules par recherche
+  const filteredVehicles = vehicles.filter((vehicle) =>
+    vehicle.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div style={{ padding: '20px', paddingTop: '50px', margin: '10px', paddingBottom: '50px', backgroundColor: '#d2d2ec' }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
         <button
-          onClick={() => navigate("/dashAdmin")}
+          onClick={() => navigate(-1)}
           style={{
             padding: '10px 15px',
-            backgroundColor: 'darkblue',
+            backgroundColor: '#ffffff',
             border: '1px solid #ccc',
             borderRadius: '6px',
             cursor: 'pointer',
             fontWeight: 'bold',
             boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-            zIndex: 999,
-            color: 'white',
+            color: 'black',
             marginRight: '20px',
           }}
         >
           ←
         </button>
-
         <input
           type="text"
-          placeholder="Search Vehicle"
+          placeholder="Rechercher un véhicule"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={{
@@ -182,26 +272,48 @@ function VehicleRoute() {
           }}
           ref={sidebarRef}
         >
-          <h3 style={{ marginBottom: '15px', textAlign: 'center', fontSize: '18px' }}>Véhicules</h3>
-          {vehicles.filter(vehicle => vehicle.name.toLowerCase().includes(searchTerm.toLowerCase())).map(vehicle => (
-            <div
-              key={vehicle.id}
-              id={`vehicle-${vehicle.id}`}
-              onClick={() => handleVehicleClick(vehicle.id)}
-              style={{
-                cursor: 'pointer',
-                padding: '10px',
-                marginBottom: '10px',
-                borderRadius: '6px',
-                backgroundColor: selectedVehicleId === vehicle.id ? '#e0f7e9' : '#f9f9f9',
-                borderLeft: `5px solid ${vehicle.status === 'online' ? '#4CAF50' : '#aaa'}`,
-              }}
-            >
-              <strong>{vehicle.name}</strong><br />
-              <span style={{ fontSize: '13px' }}><b>ID:</b> {vehicle.uniqueId}</span><br />
-              <span style={{ fontSize: '13px' }}><b>Status:</b> {vehicle.status}</span>
+          <h3 style={{ marginBottom: '15px', textAlign: 'center', fontSize: '18px' }}>
+            Véhicules
+          </h3>
+          {error && (
+            <div style={{ color: 'red', fontSize: '14px', marginBottom: '10px' }}>
+              {error}
             </div>
-          ))}
+          )}
+          {filteredVehicles.length > 0 ? (
+            filteredVehicles.map((vehicle) => (
+              <div
+                key={vehicle.id}
+                id={`vehicle-${vehicle.id}`}
+                onClick={() => handleVehicleClick(vehicle.id)}
+                style={{
+                  cursor: 'pointer',
+                  padding: '10px',
+                  marginBottom: '10px',
+                  borderRadius: '6px',
+                  backgroundColor: selectedVehicleId === vehicle.id ? '#e0f7e9' : '#f9f9f9',
+                  borderLeft: `5px solid ${vehicle.status === 'online' ? '#4CAF50' : '#aaa'}`,
+                }}
+              >
+                <strong>{vehicle.name}</strong><br />
+                <span style={{ fontSize: '13px' }}>
+                  <b>ID:</b> {vehicle.uniqueId}
+                </span>
+                <br />
+                <span style={{ fontSize: '13px' }}>
+                  <b>Status:</b> {vehicle.status}
+                </span>
+                <br />
+                <span style={{ fontSize: '13px' }}>
+                  <b>Groupe:</b> {vehicle.groupName}
+                </span>
+              </div>
+            ))
+          ) : (
+            <p style={{ fontSize: '13px', color: '#888' }}>
+              Aucun véhicule trouvé
+            </p>
+          )}
         </div>
 
         <div
@@ -249,9 +361,9 @@ function VehicleRoute() {
                       googleRef.current
                         ? {
                             path: googleRef.current.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-                            fillColor: "red",
+                            fillColor: 'red',
                             fillOpacity: 1,
-                            strokeColor: "#ffffff",
+                            strokeColor: '#ffffff',
                             strokeWeight: 2,
                             scale: 8,
                           }

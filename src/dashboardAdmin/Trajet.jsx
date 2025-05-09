@@ -17,6 +17,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import "./trajet.css";
 
 const detectExtendedStops = async (positions, google) => {
@@ -231,12 +233,12 @@ const StaticRouteMap = () => {
         break;
 
       case "distance":
-        recommendations = "Vous avez parcouru ${summary.realRoute.distance}. ";
+        recommendations = `Vous avez parcouru ${summary.realRoute.distance}. `;
         if (summary.idealRoute.distance !== "Non calculé") {
           const realDistance = parseFloat(summary.realRoute.distance);
           const idealDistance = parseFloat(summary.idealRoute.distance);
           if (realDistance > idealDistance * 1.2) {
-            recommendations += "Votre trajet était plus long que l'itinéraire idéal. Vérifiez les itin NCCs alternatifs.";
+            recommendations += "Votre trajet était plus long que l'itinéraire idéal. Vérifiez les itinéraires alternatifs.";
           } else {
             recommendations += "Votre distance est proche de l'itinéraire idéal.";
           }
@@ -676,7 +678,7 @@ const StaticRouteMap = () => {
 
       const distance = window.google.maps.geometry.spherical.computeDistanceBetween(
         new window.google.maps.LatLng(start.latitude, start.longitude),
-        new window.google.maps.LatLng(end.latitude, end.longitude)
+        new google.maps.LatLng(end.latitude, end.longitude)
       );
 
       const isCircular = distance < 50;
@@ -923,13 +925,15 @@ const StaticRouteMap = () => {
         start: period.from !== "N/A" ? new Date(period.from).toLocaleString() : "N/A",
         end: period.to !== "N/A" ? new Date(period.to).toLocaleString() : "N/A",
       },
-      realRoute: {
-        distance: activityStats.totalDistance.toFixed(2) + " km",
-        duration: formatDuration(activityStats.totalTime),
-        averageSpeed: activityStats.averageSpeed.toFixed(2) + " km/h",
-        movingAverageSpeed: activityStats.movingAverageSpeed.toFixed(2) + " km/h",
-        maxSpeed: activityStats.maxSpeed.toFixed(2) + " km/h",
-      },
+      
+    realRoute: {
+      distance: activityStats.totalDistance.toFixed(2) + " km",
+      duration: formatDuration(activityStats.totalTime),
+      averageSpeed: activityStats.averageSpeed.toFixed(2) + " km/h",
+      movingAverageSpeed: activityStats.movingAverageSpeed.toFixed(2) + " km/h",
+      maxSpeed: activityStats.maxSpeed.toFixed(2) + " km/h",
+    },
+      
       idealRoute: idealRouteData
         ? {
             distance: (idealRouteData.distance.value / 1000).toFixed(2) + " km",
@@ -983,7 +987,176 @@ const StaticRouteMap = () => {
     return `${hours}h ${mins}min`;
   };
 
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF獻2", "#8884d8", "#82ca9d"];
+  const saveActivityReportAsPDF = async () => {
+    try {
+      // Créer un élément temporaire pour le PDF
+      const pdfContent = document.createElement("div");
+      pdfContent.style.width = "210mm";
+      pdfContent.style.padding = "20px";
+      pdfContent.style.backgroundColor = "white";
+      
+      // Ajouter le contenu formaté
+      const summary = generateAnalyticalSummary();
+      
+      pdfContent.innerHTML = `
+        <style>
+          .pdf-header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+          }
+          .pdf-title {
+            color: darkblue;
+            font-size: 24px;
+            margin: 0;
+          }
+          .pdf-section {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+          }
+          .pdf-section h3 {
+            color: #007bff;
+            margin-top: 0;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 5px;
+          }
+          .pdf-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+          }
+          .pdf-label {
+            font-weight: bold;
+            width: 50%;
+          }
+          .pdf-value {
+            width: 50%;
+          }
+          .pdf-list {
+            margin-top: 5px;
+            padding-left: 20px;
+          }
+          .company-logo {
+            text-align: center;
+            margin-bottom: 10px;
+          }
+        </style>
+        
+        <div class="pdf-header">
+          <h1 class="pdf-title">Rapport de Trajet - ${summary.vehicle.name}</h1>
+          <p> Date: ${formatDate(new Date())}</p>
+        </div>
+  
+        <div class="pdf-section">
+          <h3>Informations du Véhicule</h3>
+          <div class="pdf-row">
+            <span class="pdf-label">Nom :</span>
+            <span class="pdf-value">${summary.vehicle.name}</span>
+          </div>
+        </div>
+  
+        <div class="pdf-section">
+          <h3>Période Analysée</h3>
+          <div class="pdf-row">
+            <span class="pdf-label">Début :</span>
+            <span class="pdf-value">${summary.period.start}</span>
+          </div>
+          <div class="pdf-row">
+            <span class="pdf-label">Fin :</span>
+            <span class="pdf-value">${summary.period.end}</span>
+          </div>
+        </div>
+  
+        <div class="pdf-section">
+          <h3>Trajet Effectué</h3>
+          <div class="pdf-row">
+            <span class="pdf-label">Distance :</span>
+            <span class="pdf-value">${summary.realRoute.distance}</span>
+          </div>
+          <div class="pdf-row">
+            <span class="pdf-label">Durée :</span>
+            <span class="pdf-value">${summary.realRoute.duration}</span>
+          </div>
+          <div class="pdf-row">
+            <span class="pdf-label">Vitesse Moyenne :</span>
+            <span class="pdf-value">${summary.realRoute.averageSpeed}</span>
+          </div>
+          <div class="pdf-row">
+            <span class="pdf-label">Vitesse Maximale :</span>
+            <span class="pdf-value">${summary.realRoute.maxSpeed}</span>
+          </div>
+        </div>
+  
+        ${summary.longestStop ? `
+        <div class="pdf-section">
+          <h3>Arrêt Prolongé</h3>
+          <div class="pdf-row">
+            <span class="pdf-label">Adresse :</span>
+            <span class="pdf-value">${summary.longestStop.address}</span>
+          </div>
+          <div class="pdf-row">
+            <span class="pdf-label">Durée :</span>
+            <span class="pdf-value">${summary.longestStop.duration}</span>
+          </div>
+          <div class="pdf-row">
+            <span class="pdf-label">Coordonnées :</span>
+            <span class="pdf-value">${summary.longestStop.coordinates}</span>
+          </div>
+        </div>
+        ` : ''}
+  
+        <div class="pdf-section">
+          <h3>Activité</h3>
+          <div class="pdf-row">
+            <span class="pdf-label">Temps en mouvement :</span>
+            <span class="pdf-value">${summary.activitySummary.movingTime}</span>
+          </div>
+          <div class="pdf-row">
+            <span class="pdf-label">Temps à l'arrêt :</span>
+            <span class="pdf-value">${summary.activitySummary.stoppedTime}</span>
+          </div>
+        </div>
+  
+        <div class="pdf-section">
+          <h3>Distribution du temps</h3>
+          <ul class="pdf-list">
+            ${summary.activitySummary.timeDistribution.map(period => `
+              <li>${period.period} : ${period.minutes} minutes</li>
+            `).join('')}
+          </ul>
+        </div>
+      `;
+  
+      // Ajouter au DOM temporairement
+      document.body.appendChild(pdfContent);
+  
+      // Générer le PDF
+      const canvas = await html2canvas(pdfContent, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+  
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`rapport_trajet_${summary.vehicle.name}_${formatDate(new Date())}.pdf`);
+  
+      // Nettoyer
+      document.body.removeChild(pdfContent);
+    } catch (error) {
+      console.error("Erreur lors de la génération du PDF:", error);
+      alert("Erreur lors de la génération du PDF.");
+    }
+  };
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 
   return (
     <div className="trajet-container">
@@ -1025,32 +1198,34 @@ const StaticRouteMap = () => {
               placeholder="Posez une question sur votre trajet..."
               disabled={isChatLoading}
             />
-            <button type="submit" disabled={isChatLoading || !chatInput.trim()}
-            className="send-button"
-  >
-    {isChatLoading ? (
-      <span className="loading-dots">
-        <span>.</span>
-        <span>.</span>
-        <span>.</span>
-      </span>
-    ) : (
-      "Envoyer"
-    )}
-  </button>
-</form>
+            <button
+              type="submit"
+              disabled={isChatLoading || !chatInput.trim()}
+              className="send-button"
+            >
+              {isChatLoading ? (
+                <span className=" uma loading-dots">
+                  <span>.</span>
+                  <span>.</span>
+                  <span>.</span>
+                </span>
+              ) : (
+                "Envoyer"
+              )}
+            </button>
+          </form>
           <div className="suggested-questions">
-  {suggestedQuestions.map((question, index) => (
-    <button
-      key={index}
-      className="suggested-question-btn"
-      onClick={() => setChatInput(question)}
-      disabled={isChatLoading}
-    >
-      {question}
-    </button>
-  ))}
-</div>
+            {suggestedQuestions.map((question, index) => (
+              <button
+                key={index}
+                className="suggested-question-btn"
+                onClick={() => setChatInput(question)}
+                disabled={isChatLoading}
+              >
+                {question}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       <h1 className="trajet-title">Planification de Trajet</h1>
@@ -1099,112 +1274,122 @@ const StaticRouteMap = () => {
       </div>
 
       {showSummary && (
-        <div className="activity-modal-overlay">
-          <div className="activity-modal">
-            <h2 style={{ color: "darkblue", marginBottom: "15px" }}>
-              Résumé Analytique - {location.state?.vehicleName}
-            </h2>
-            <button onClick={handleShowSummary}>×</button>
+  <div className="activity-modal-overlay">
+    <div className="activity-modal">
+      <h2 style={{ color: "darkblue", marginBottom: "15px" }}>
+        Résumé Analytique - {location.state?.vehicleName}
+      </h2>
+      <button onClick={handleShowSummary}>×</button>
 
-            {isStatsLoading ? (
-              <p>Chargement des statistiques...</p>
-            ) : (
-              (() => {
-                const summary = generateAnalyticalSummary();
-                return (
-                  <div>
-                    <h3>Informations du Véhicule</h3>
-                    <p>
-                      <strong>Nom :</strong> {summary.vehicle.name}
-                    </p>
+      {isStatsLoading ? (
+        <p>Chargement des statistiques...</p>
+      ) : (
+        (() => {
+          const summary = generateAnalyticalSummary();
+          return (
+            <>
+              <div>
+                <h3>Informations du Véhicule</h3>
+                <p>
+                  <strong>Nom :</strong> {summary.vehicle.name}
+                </p>
 
-                    <h3>Période Analysée</h3>
-                    <p>
-                      <strong>Début :</strong> {summary.period.start}
-                    </p>
-                    <p>
-                      <strong>Fin :</strong> {summary.period.end}
-                    </p>
+                <h3>Période Analysée</h3>
+                <p>
+                  <strong>Début :</strong> {summary.period.start}
+                </p>
+                <p>
+                  <strong>Fin :</strong> {summary.period.end}
+                </p>
 
-                    <h3>Trajet Effectué</h3>
-                    <p>
-                      <strong>Distance :</strong> {summary.realRoute.distance}
-                    </p>
-                    <p>
-                      <strong>Durée :</strong> {summary.realRoute.duration}
-                    </p>
-                    <p>
-                      <strong>Vitesse Moyenne (globale) :</strong> {summary.realRoute.averageSpeed}
-                    </p>
-                    <p>
-                      <strong>Vitesse Moyenne (en mouvement) :</strong> {summary.realRoute.movingAverageSpeed}
-                    </p>
-                    <p>
-                      <strong>Vitesse Maximale :</strong> {summary.realRoute.maxSpeed}
-                    </p>
+                <h3>Trajet Effectué</h3>
+                <p>
+                  <strong>Distance :</strong> {summary.realRoute.distance}
+                </p>
+                <p>
+                  <strong>Durée :</strong> {summary.realRoute.duration}
+                </p>
+                <p>
+                  <strong>Vitesse Moyenne (globale) :</strong> {summary.realRoute.averageSpeed}
+                </p>
+                <p>
+                  <strong>Vitesse Moyenne (en mouvement) :</strong> {summary.realRoute.movingAverageSpeed}
+                </p>
+                <p>
+                  <strong>Vitesse Maximale :</strong> {summary.realRoute.maxSpeed}
+                </p>
 
-                    <h3>Trajet Idéal</h3>
-                    <p>
-                      <strong>Distance :</strong> {summary.idealRoute.distance}
-                    </p>
-                    <p>
-                      <strong>Durée :</strong> {summary.idealRoute.duration}
-                    </p>
+                <h3>Trajet Idéal</h3>
+                <p>
+                  <strong>Distance :</strong> {summary.idealRoute.distance}
+                </p>
+                <p>
+                  <strong>Durée :</strong> {summary.idealRoute.duration}
+                </p>
 
-                    <h3>Arrêt Prolongé</h3>
-                    {summary.longestStop ? (
-                      <>
-                        <p>
-                          <strong>Adresse :</strong> {summary.longestStop.address}
-                        </p>
-                        <p>
-                          <strong>Durée :</strong> {summary.longestStop.duration}
-                        </p>
-                        <p>
-                          <strong>Début :</strong> {summary.longestStop.startTime}
-                        </p>
-                        <p>
-                          <strong>Fin :</strong> {summary.longestStop.endTime}
-                        </p>
-                        <p>
-                          <strong>Coordonnées :</strong> {summary.longestStop.coordinates}
-                        </p>
-                      </>
-                    ) : (
-                      <p>Aucun arrêt prolongé détecté.</p>
-                    )}
+                <h3>Arrêt Prolongé</h3>
+                {summary.longestStop ? (
+                  <>
+                    <p>
+                      <strong>Adresse :</strong> {summary.longestStop.address}
+                    </p>
+                    <p>
+                      <strong>Durée :</strong> {summary.longestStop.duration}
+                    </p>
+                    <p>
+                      <strong>Début :</strong> {summary.longestStop.startTime}
+                    </p>
+                    <p>
+                      <strong>Fin :</strong> {summary.longestStop.endTime}
+                    </p>
+                    <p>
+                      <strong>Coordonnées :</strong> {summary.longestStop.coordinates}
+                    </p>
+                  </>
+                ) : (
+                  <p>Aucun arrêt prolongé détecté.</p>
+                )}
 
-                    <h3>Résumé des Activités</h3>
-                    <p>
-                      <strong>Temps en mouvement :</strong> {summary.activitySummary.movingTime}
-                    </p>
-                    <p>
-                      <strong>Temps à l'arrêt :</strong> {summary.activitySummary.stoppedTime}
-                    </p>
-                    <h4>Distribution du temps par période</h4>
-                    <ul>
-                      {summary.activitySummary.timeDistribution.map((period, index) => (
-                        <li key={index}>
-                          {period.period} : {period.minutes} minutes
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })()
-            )}
-          </div>
-        </div>
+                <h3>Résumé des Activités</h3>
+                <p>
+                  <strong>Temps en mouvement :</strong> {summary.activitySummary.movingTime}
+                </p>
+                <p>
+                  <strong>Temps à l'arrêt :</strong> {summary.activitySummary.stoppedTime}
+                </p>
+                <h4>Distribution du temps par période</h4>
+                <ul>
+                  {summary.activitySummary.timeDistribution.map((period, index) => (
+                    <li key={index}>
+                      {period.period} : {period.minutes} minutes
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="pdf-button-container">
+  <button
+    className="pdf-button"
+    onClick={saveActivityReportAsPDF}
+    disabled={isStatsLoading}
+  >
+    {isStatsLoading ? "Génération..." : "Exporter en PDF"}
+  </button>
+</div>
+            </>
+          );
+        })()
       )}
+    </div>
+  </div>
+)}
 
       {showActivityReport && (
         <div className="activity-modal-overlay">
           <div className="activity-modal">
             <h2>Rapport d'activité du trajet</h2>
-            
-
             <div className="tab-buttons">
-            <button onClick={handleViewActivity}>×</button>
+              <button onClick={handleViewActivity}>×</button>
               <button
                 className={`tab-button ${activeTab === "general" ? "active" : ""}`}
                 onClick={() => setActiveTab("general")}
@@ -1223,6 +1408,7 @@ const StaticRouteMap = () => {
               >
                 Arrêts
               </button>
+              
             </div>
             <div className="tab-content">
               {activeTab === "general" && (
@@ -1271,7 +1457,7 @@ const StaticRouteMap = () => {
                               label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                             >
                               {activityStats.stopsData.map((entry, index) => (
-                             <Cell key={`cell${index}`} fill={COLORS[index % COLORS.length]} />
+                                <Cell key={`cell${index}`} fill={COLORS[index % COLORS.length]} />
                               ))}
                             </Pie>
                             <Tooltip formatter={(value) => `${value} min`} />

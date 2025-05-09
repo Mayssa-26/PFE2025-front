@@ -4,6 +4,7 @@ import "../dashboardAdmin/NavBar.css";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 
+
 const NavbarSuperAdmin = ({ offlineCount }) => {
      const [showTooltip, setShowTooltip] = useState(false); // 👈 état pour afficher ou cacher le message
     
@@ -31,7 +32,7 @@ const NavbarSuperAdmin = ({ offlineCount }) => {
                     )}
                 </div>
             </div>
-            <button className="profile-button">Profile</button>
+            <Link to='/profilSA' className="profile-button" >Profile</Link>
         </div>
     );
 };

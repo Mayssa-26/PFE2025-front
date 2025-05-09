@@ -32,7 +32,7 @@ const Navbar = ({ offlineCount }) => {
                 </div>
             </div>
 
-            <button className="profile-button">Profile</button>
+            <Link to='/profil' className="profile-button" >Profile</Link>
         </div>
     );
 };

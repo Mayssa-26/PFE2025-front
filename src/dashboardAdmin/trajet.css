@@ -1509,3 +1509,62 @@ body {
     background: linear-gradient(110deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 40%);
   }
 }
+.pdf-button-container {
+  display: flex;
+  justify-content: center; /* Centrer horizontalement */
+  margin-top: 20px; /* Espacement au-dessus */
+  margin-bottom: 20px; /* Espacement en-dessous */
+}
+
+.pdf-button {
+  padding: 10px 20px;
+  background-color: #14174f; /* Couleur de fond */
+  color: white; /* Couleur du texte */
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s;
+}
+
+.pdf-button:hover {
+  background-color: #121453; /* Couleur au survol */
+}
+
+.pdf-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Ajuster la modale pour éviter tout chevauchement */
+.activity-modal {
+  position: relative;
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  overflow-y: auto;
+  max-height: 80vh;
+}
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #333;
+}
+
+.close-button:hover {
+  color: #ff0000;
+}
+.pdf-button-container {
+  position: relative;
+  bottom: 25px;
+  right: 30px;
+  
+}

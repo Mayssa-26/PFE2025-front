@@ -1,15 +1,14 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { FaMapMarked, FaHandSpock, FaSignOutAlt, FaCog } from "react-icons/fa";
 import { MdDriveEta } from "react-icons/md";
-import { ThemeContext } from "./ThemeContext";
+//import { ThemeContext } from "./ThemeContext";
 import { useAuth } from "../Authentification/AuthContext";
 import { FaBars } from "react-icons/fa";
 import "./SideBar.css";
 
 const Sidebar = () => {
   const { userName, logout } = useAuth();
-  const { darkMode, toggleDarkMode } = useContext(ThemeContext);
   const navigate = useNavigate();
   
   // Debugging: Check userName value
@@ -21,9 +20,7 @@ const Sidebar = () => {
   };
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  const [showChauffeurSubMenu, setShowChauffeurSubMenu] = useState(false);
-  const toggleChauffeurSubMenu = () => setShowChauffeurSubMenu(!showChauffeurSubMenu);
-
+  
   const [showVoitureSubMenu, setShowVoitureSubMenu] = useState(false);
   const toggleVoitureSubMenu = () => setShowVoitureSubMenu(!showVoitureSubMenu);
 
@@ -33,7 +30,7 @@ const Sidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
   return (
-    <div className={`dashboard-admin ${darkMode ? "dark-mode" : ""}`}>
+    <div className={`dashboard-admin`}>
             <button className="toggle-btn" onClick={toggleSidebar}>
         <FaBars />
       </button>
@@ -44,21 +41,16 @@ const Sidebar = () => {
 
         <div className="sidebar-content">
           <nav className="sidebar-nav">
-            <div className="nav-item" onClick={toggleChauffeurSubMenu}>
+            <div className="nav-item" >
               <FaHandSpock className="nav-icon" />
-              ----Chauffeurs
-              <ul className={`sub-menu ${showChauffeurSubMenu ? "open" : ""}`}>
-                <li><Link to="/TousChauffeurs">Tous les Chauffeurs</Link></li>
-                <li><Link to="/StatistiquesChauffeurs">Statistiques chauffeurs</Link></li>
-              </ul>
+              <Link to="/rapport" className="color">----Rapports</Link>
             </div>
 
             <div className="nav-item" onClick={toggleVoitureSubMenu}>
               <MdDriveEta className="nav-icon" />
               ----Véhicules
               <ul className={`sub-menu ${showVoitureSubMenu ? "open" : ""}`}>
-                <li><Link to="/ToutesVoitures">Tous les véhicules</Link></li>
-                <li><Link to="/VehiculesAvecCapteur">Véhicules avec capteur</Link></li>
+               <li><Link to="/VehiculesAvecCapteur">Véhicules avec capteur</Link></li>
                 <li><Link to="/VehiculesSansCapteur">Véhicules sans capteur</Link></li>
               </ul>
             </div>
@@ -74,22 +66,15 @@ const Sidebar = () => {
               ----Paramètres
               <ul className={`sub-menu ${showSettingsSubMenu ? "open" : ""}`}>
                 <li><Link to="/profil">Profil administrateur</Link></li>
-                <li>
-                  Préférences système
-                  <ul>
-                    <li onClick={toggleDarkMode} style={{ cursor: "pointer" }}>
-                      Activer {darkMode ? "Mode Clair" : "Mode Sombre"}
-                    </li>
-                  </ul>
-                </li>
+                
+      
                 <li>
                   Sécurité
                   <ul>
-                    <li><Link to="/securite/modifier-mot-de-passe">Modifier mot de passe</Link></li>
-                    <li><Link to="/securite/modifier-email">Modifier email</Link></li>
-                  </ul>
+                    <li><Link to="/modifierPassword">Modifier mot de passe</Link></li>
+                    </ul>
                 </li>
-                <li><Link to="/notifications-settings">Notifications</Link></li>
+                
               </ul>
             </div>
           </nav>

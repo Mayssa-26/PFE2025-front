@@ -22,6 +22,8 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "dotenv": "^16.4.7",
+    "fortawesome": "^0.0.1-security",
+    "jspdf": "^3.0.1",
     "jwt-decode": "^3.1.2",
     "leaflet": "^1.9.4",
     "leaflet-arrowheads": "github:slutske22/leaflet-arrowheads",
@@ -40,8 +42,11 @@
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.2.0",
     "react-scripts": "^5.0.1",
+    "react-toastify": "^11.0.5",
     "recharts": "^2.15.2",
     "serialize-javascript": "^6.0.2",
+    "sweetalert2": "^11.21.0",
+    "sweetalert2-react-content": "^5.1.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

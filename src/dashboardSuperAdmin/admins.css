@@ -16,8 +16,9 @@
   }
   
   .admin-table th {
-    background-color: #adb4bb;
-    color: white;
+    background-color: #ebedef;
+    color: rgb(26, 7, 7);
+    font-weight: 500;
   }
   
   .admin-table tr:nth-child(even) {

@@ -11,7 +11,7 @@
 .navbar-title {
   font-size: 1.5rem;
   font-weight: bold;
-  color: #333;
+  color: #160b43;
   text-decoration: none;
 }
 
@@ -21,7 +21,7 @@
 }
 
 .notification-icon {
-  color: #333;
+  color: #261451;
   font-size: 1.5rem;
   position: relative;
   cursor: pointer;
@@ -70,7 +70,7 @@
 
 
 .profile-button {
-  background-color: #333;
+  background-color: #0b0c2e;
   color: white;
   border: none;
   padding: 8px 16px;
@@ -81,7 +81,7 @@
 }
 
 .profile-button:hover {
-  background-color: #555;
+  background-color: #0e1047;
 }
 
 /* Animations */

@@ -11,14 +11,13 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
     nom: initialData.nom || "",
     prenom: initialData.prenom || "",
     email: initialData.email || "",
-    password: initialData.password || "",
     confirmPassword: initialData.password || "",
     cin: initialData.cin || "",
     adresse: initialData.adresse || "",
     nationalite: initialData.nationalite || "",
     dateNaissance: initialData.dateNaissance || "",
-    NumTel: initialData.numTel || "",
-    role: initialData.role || "Admin",
+    numTel: initialData.numTel || "",
+    role: "Admin",
   });
 
   const [message, setMessage] = useState("");
@@ -30,7 +29,7 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
       setMessage("Le CIN doit contenir exactement 8 chiffres.");
       return;
     }
-    if (!/^\d{8}$/.test(formData.NumTel)) {
+    if (!/^\d{8}$/.test(formData.numTel)) {
       setMessage("Le numero de téléphone doit contenir exactement 8 chiffres.");
       return;
     }
@@ -77,7 +76,8 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
 
         <form onSubmit={handleSubmit}>
           <div className="register-input-group">
-            <span>👤Nom et prenom</span>
+            <div>
+            <span>👤Nom</span>
             <input
               className="input-small"
               type="text"
@@ -86,7 +86,9 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
               value={formData.nom}
               onChange={handleChange}
               required
-            />
+            /></div>
+            <div>
+            <span>👤prenom</span>
             <input
               className="input-small"
               type="text"
@@ -95,7 +97,7 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
               value={formData.prenom}
               onChange={handleChange}
               required
-            />
+            /></div>
           </div>
 
           <div className="register-input-group">
@@ -107,18 +109,6 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
               value={formData.email}
               onChange={handleChange}
               required
-            />
-          </div>
-
-          <div className="register-input-group">
-            <span>🔑 mot de passe</span>
-            <input
-              type="password"
-              name="password"
-              placeholder="Mot de passe"
-              value={formData.password}
-              onChange={handleChange}
-              required={!isEditMode} // Mot de passe facultatif en mode édition
             />
           </div>
 
@@ -154,9 +144,9 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
             <input
               className="input-large"
               type="text"
-              name="NumTel"
+              name="numTel"
               placeholder="Numéro de téléphone"
-              value={formData.NumTel}
+              value={formData.numTel}
               onChange={handleChange}
               required
             />
@@ -171,13 +161,6 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
               onChange={handleChange}
               required
             />
-          </div>
-
-          <div className="register-input-group">
-            <label>Rôle :</label>
-            <select name="role" value={formData.role} onChange={handleChange}>
-              <option value="Admin">Admin</option>
-            </select>
           </div>
 
           <div className="form-actions">
@@ -210,7 +193,6 @@ Register.propTypes = {
     nom: PropTypes.string,
     prenom: PropTypes.string,
     email: PropTypes.string,
-    password: PropTypes.string,
     cin: PropTypes.string,
     adresse: PropTypes.string,
     nationalite: PropTypes.string,

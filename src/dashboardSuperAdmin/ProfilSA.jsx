@@ -2,12 +2,11 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import jwt_decode from "jwt-decode";
 import { useNavigate, useLocation } from "react-router-dom";
-import "./Profil.css";
-import Sidebar from "./SideBar";
-import Navbar from "./NavBar";
+import "../dashboardAdmin/Profil.css";
+import SidebarSupAdmin from "./SideBarSupAdmin";
 import Register from "../register/Register"; // Import manquant ajouté
-
-const UserProfile = () => {
+import NavbarSuperAdmin from "./NavBarSupAdmin";
+const SAProfile = () => {
   const [adminData, setAdminData] = useState({
     nom: "",
     prenom: "",
@@ -46,7 +45,7 @@ const UserProfile = () => {
       }
 
       if (!decoded.id) {
-        throw new Error("ID admin manquant dans le token");
+        throw new Error("ID super admin manquant dans le token");
       }
 
       const response = await axios.get(`http://localhost:8000/api/user/${decoded.id}`, {
@@ -120,7 +119,7 @@ const UserProfile = () => {
       }
 
       const decoded = jwt_decode(token);
-      await axios.put(`http://localhost:8000/api/user/updateAdmin/${decoded.id}`, updatedData, {
+      await axios.put(`http://localhost:8000/api/user/updateAdminSA/${decoded.id}`, updatedData, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -155,12 +154,12 @@ const UserProfile = () => {
 
   return (
     <div className="dashboard-admin">
-      <Sidebar />
+      <SidebarSupAdmin />
       <div className="main-content">
-        <Navbar />
+        <NavbarSuperAdmin />
         <div className="profile-container">
           <div className="profile-header">
-            <h1 style={{ color: 'rgb(25, 25, 69)' }}>Profil Administrateur</h1>
+            <h1 style={{ color: 'rgb(25, 25, 69)' }}>Profil Super Administrateur</h1>
             
           </div>
 
@@ -202,7 +201,7 @@ const UserProfile = () => {
             </div>
 
             <div className="profile-section">
-              <h2>Informations Administrateur</h2>
+              <h2>Informations Super Administrateur</h2>
               <div className="profile-info">
                 <div className="info-item">
                   <span className="info-label">CIN:</span>
@@ -236,4 +235,4 @@ const UserProfile = () => {
   );
 };
 
-export default UserProfile;
+export default SAProfile;

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaMapMarked, FaHandSpock, FaSignOutAlt } from 'react-icons/fa';
+import { FaMapMarked, FaHandSpock, FaSignOutAlt,FaCog } from 'react-icons/fa';
+import {FaPeopleGroup} from 'react-icons/fa6';
 import { MdDriveEta } from 'react-icons/md';
 import { Link } from 'react-router-dom';
 import { FileText } from 'lucide-react';
@@ -19,7 +20,9 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
   };
 
   const toggleVoitureSubMenu = () => setShowVoitureSubMenu(!showVoitureSubMenu);
-
+  const [showSettingsSubMenu, setShowSettingsSubMenu] = useState(false);
+  const toggleSettingsSubMenu = () => setShowSettingsSubMenu(!showSettingsSubMenu);
+  
   return (
     <div className={`dashboard-admin`}>
       <div className={`sidebar ${isSidebarOpen ? 'show' : ''}`}>
@@ -40,9 +43,7 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
             <div className="nav-item" onClick={toggleVoitureSubMenu}>
               <MdDriveEta className="nav-icon" /> ----Véhicules
               <ul className={`sub-menu ${showVoitureSubMenu ? 'open' : ''}`}>
-                <li>
-                  <Link to="/ToutesVoituresSA">Tous les véhicules</Link>
-                </li>
+                
                 <li>
                   <Link to="/VehiculesAvecCapteurSA">Véhicules avec capteur</Link>
                 </li>
@@ -59,12 +60,34 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
             </div>
 
             <div className="nav-item">
+              <Link to="/TableGroups" className="color">
+                <FaPeopleGroup className="nav-icon" /> ----Groupes
+              </Link>
+            </div>
+
+            <div className="nav-item">
               <Link to="/demandes" className="color">
                 <FileText size={18} className="nav-icon" /> ----Demandes
               </Link>
             </div>
           </nav>
         </div>
+        <div className="nav-item" onClick={toggleSettingsSubMenu}>
+              <FaCog className="nav-icon" />
+              ----Paramètres
+              <ul className={`sub-menu ${showSettingsSubMenu ? "open" : ""}`}>
+                <li><Link to="/profilSA">Profil Super Administrateur</Link></li>
+                
+      
+                <li>
+                  Sécurité
+                  <ul>
+                    <li><Link to="/modifierPassword">Modifier mot de passe</Link></li>
+                    </ul>
+                </li>
+                
+              </ul>
+            </div>
 
         <button className="logout-button" onClick={handleLogout}>
           <FaSignOutAlt className="logout-icon" /> Se déconnecter
