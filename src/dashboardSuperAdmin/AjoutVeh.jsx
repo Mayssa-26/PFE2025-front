@@ -1,44 +1,43 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom"; // Importer useNavigate
+import { useNavigate, useLocation } from "react-router-dom";
+import axios from 'axios';
 import "./AjoutVeh.css";
-import Sidebar from "../dashboardAdmin/SideBar";
-import Navbar from "../dashboardAdmin/NavBar";
+import SidebarSupAdmin from "./SideBarSupAdmin";
+import NavbarSuperAdmin from "./NavBarSupAdmin";
 
 const AddVehicle = () => {
   const process = window.process || { env: {} };
   const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
-  const navigate = useNavigate(); // Initialiser useNavigate
+  const navigate = useNavigate();
+  const location = useLocation();
+  const vehicle = location.state?.vehicle; // Récupérer les données du véhicule si modification
 
   const [formData, setFormData] = useState({
-    marque: "",
-    modele: "",
-    immatriculation: "",
-    mec: "",
-    etat: "Fonctionnel",
-    proprietaire: "",
-    numChassis: "",
-    typeMines: "",
-    kilometrage: "",
-    conducteur: null,
-    capteurId: null,
-    hasCapteur: false
+    marque: vehicle?.marque || "",
+    modele: vehicle?.modele || "",
+    immatriculation: vehicle?.immatriculation || "",
+    mec: vehicle?.mec ? new Date(vehicle.mec).toISOString().split('T')[0] : "",
+    etat: vehicle?.etat || "Fonctionnel",
+    proprietaire: vehicle?.proprietaire || "",
+    numChassis: vehicle?.numChassis || "",
+    typeMines: vehicle?.typeMines || "",
+    kilometrage: vehicle?.kilometrage || "",
+    conducteur: vehicle?.conducteur || null,
+    capteurId: vehicle?.capteurId || null,
+    hasCapteur: vehicle?.hasCapteur || false
   });
 
   const [groupes, setGroupes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
+  const isEditMode = !!vehicle; // Déterminer si on est en mode édition
 
-  // Récupérer la liste des groupes
   useEffect(() => {
     const fetchGroupes = async () => {
       try {
-        const response = await fetch(`${apiUrl}/groupes`);
-        if (!response.ok) {
-          throw new Error("Erreur lors de la récupération des groupes");
-        }
-        const data = await response.json();
-        setGroupes(data);
+        const response = await axios.get(`${apiUrl}/groupes`);
+        setGroupes(response.data);
       } catch (error) {
         console.error("Erreur:", error);
         setMessage("Impossible de charger la liste des groupes");
@@ -51,12 +50,10 @@ const AddVehicle = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
-    if (type === "checkbox") {
-      setFormData(prev => ({ ...prev, [name]: checked }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value
+    }));
   };
 
   const validateForm = () => {
@@ -70,15 +67,13 @@ const AddVehicle = () => {
       }
     }
 
-    const immatriculationRegex = /^[A-Z0-9]{3,10}$/i;
-    if (!immatriculationRegex.test(formData.immatriculation)) {
+    if (!/^[A-Z0-9]{3,10}$/i.test(formData.immatriculation)) {
       setMessage("Format d'immatriculation invalide");
       setMessageType("error");
       return false;
     }
 
-    const vinRegex = /^[A-HJ-NPR-Z0-9]{17}$/i;
-    if (!vinRegex.test(formData.numChassis)) {
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/i.test(formData.numChassis)) {
       setMessage("Le numéro de châssis doit contenir 17 caractères alphanumériques (sans I, O, Q)");
       setMessageType("error");
       return false;
@@ -89,46 +84,35 @@ const AddVehicle = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
-    
-    try {
-      const response = await fetch(`${apiUrl}/vehicules`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Erreur lors de l'ajout du véhicule");
+    try {
+      if (isEditMode) {
+        // Mode modification
+        const response = await axios.put(`${apiUrl}/vehicules/update/${vehicle._id}`, {
+          ...formData,
+          mec: new Date(formData.mec).toISOString()
+        });
+
+        setMessage("Véhicule modifié avec succès !");
+        setMessageType("success");
+      } else {
+        // Mode ajout
+        const response = await axios.post(`${apiUrl}/vehicules/createVehicule`, {
+          ...formData,
+          mec: new Date(formData.mec).toISOString()
+        });
+
+        setMessage("Véhicule ajouté avec succès !");
+        setMessageType("success");
       }
 
-      setFormData({
-        marque: "",
-        modele: "",
-        immatriculation: "",
-        mec: "",
-        etat: "Fonctionnel",
-        proprietaire: "",
-        numChassis: "",
-        typeMines: "",
-        kilometrage: "",
-        conducteur: null,
-        capteurId: null,
-        hasCapteur: false
-      });
-
-      setMessage("Véhicule ajouté avec succès!");
-      setMessageType("success");
+      // Redirection après 2 secondes
+      setTimeout(() => navigate("/VehiculesSansCapteurSA"), 2000);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.response?.data?.message || "Erreur lors de l'opération");
       setMessageType("error");
     } finally {
       setLoading(false);
@@ -137,13 +121,13 @@ const AddVehicle = () => {
 
   return (
     <div className="dashboard-admin">
-      <Sidebar />
+      <SidebarSupAdmin />
       <div className="main-content">
-        <Navbar />
+        <NavbarSuperAdmin />
         <div className="vehicle-container">
           <div className="vehicle-form-container">
             <div className="vehicle-header">
-              <h2>Ajouter un nouveau véhicule</h2>
+              <h2>{isEditMode ? "Modifier le véhicule" : "Ajouter un nouveau véhicule"}</h2>
               <div className="vehicle-decoration"></div>
             </div>
 
@@ -216,7 +200,7 @@ const AddVehicle = () => {
                       id="mec"
                       type="date"
                       name="mec"
-                      value={formData.mec ? formData.mec.split('T')[0] : ''}
+                      value={formData.mec}
                       onChange={handleChange}
                       required
                     />
@@ -298,6 +282,7 @@ const AddVehicle = () => {
                 <div className="vehicle-input-group">
                   <label htmlFor="kilometrage">
                     <span className="input-icon">🧮</span> Kilométrage
+
                   </label>
                   <input
                     id="kilometrage"
@@ -312,17 +297,17 @@ const AddVehicle = () => {
               </div>
 
               <div className="form-actions">
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="vehicle-btn primary"
                   disabled={loading}
                 >
-                  {loading ? "Traitement en cours..." : "Enregistrer le véhicule"}
+                  {loading ? "Traitement en cours..." : isEditMode ? "Modifier le véhicule" : "Enregistrer le véhicule"}
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="vehicle-btn secondary"
-                  onClick={() => navigate("/VehiculesSansCapteurSA")} // Rediriger vers la page vehSansCap
+                  onClick={() => navigate("/VehiculesSansCapteurSA")}
                 >
                   Annuler
                 </button>

@@ -1,23 +1,42 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import "./dashSuperAdmin.css";
+import "./DemandesTable.css";
 import SidebarSupAdmin from "./SideBarSupAdmin";
 import NavbarSuperAdmin from "./NavBarSupAdmin";
-import "./DemandesTable.css";
 import { HiOutlineCheckCircle, HiOutlineXCircle } from "react-icons/hi";
-import GroupAssignmentPopup from "./GroupAssignmentPopup";
+import { NotificationContext } from "./NotificationContext";
+import { useLocation } from "react-router-dom";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const DemandesTable = () => {
+  const { demandes, fetchDemandes } = useContext(NotificationContext);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [demandes, setDemandes] = useState([]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [highlightedDemande, setHighlightedDemande] = useState(null);
   const demandesParPage = 3;
-  
-  // For the popup
-  const [showPopup, setShowPopup] = useState(false);
-  const [selectedAdmin, setSelectedAdmin] = useState(null);
+  const location = useLocation();
 
-  const updateStatus = async (userId, status, nomComplet) => {
+  // Gérer la mise en surbrillance depuis la navigation
+  useEffect(() => {
+    if (location.state?.highlightedDemandeId) {
+      const demandeIndex = demandes.findIndex(
+        (demande) => demande._id === location.state.highlightedDemandeId
+      );
+      if (demandeIndex !== -1) {
+        setStatusFilter("all");
+        const page = Math.ceil((demandeIndex + 1) / demandesParPage);
+        setCurrentPage(page);
+        setHighlightedDemande(location.state.highlightedDemandeId);
+        setTimeout(() => {
+          setHighlightedDemande(null);
+        }, 3000);
+      }
+    }
+  }, [location.state, demandes]);
+
+  const updateStatus = async (userId, status) => {
     try {
       let response;
       if (status === "Approuvée") {
@@ -25,34 +44,12 @@ const DemandesTable = () => {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            // Add Authorization header if required, e.g., Bearer token
-            // "Authorization": `Bearer ${localStorage.getItem("token")}`,
           },
         });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error(`Erreur HTTP: ${response.status}`, errorData);
-          throw new Error(errorData.message || "Erreur lors de la mise à jour du statut");
-        }
-
-        const result = await response.json();
-        console.log(result.message);
-        
-        // Show popup to assign group to the newly created admin
-        if (result.idNewAdmin) {
-          setSelectedAdmin({
-            id: result.idNewAdmin._id,
-            name: nomComplet
-          });
-          setShowPopup(true);
-        }
-        
       } else if (status === "Rejetée") {
-        // Prompt for rejection reason
         const raison = window.prompt("Veuillez entrer la raison du refus :");
         if (!raison) {
-          alert("Une raison est requise pour rejeter la demande.");
+          toast.error("Une raison est requise pour rejeter la demande.");
           return;
         }
 
@@ -60,44 +57,26 @@ const DemandesTable = () => {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            // Add Authorization header if required
-            // "Authorization": `Bearer ${localStorage.getItem("token")}`,
           },
           body: JSON.stringify({ raison }),
         });
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error(`Erreur HTTP: ${response.status}`, errorData);
-          throw new Error(errorData.message || "Erreur lors de la mise à jour du statut");
-        }
-
-        const result = await response.json();
-        console.log(result.message);
       }
 
-      fetchDemandes(); // Refresh the demands list
-    } catch (error) {
-      console.error("Erreur:", error);
-      alert("Une erreur s'est produite : " + error.message);
-    }
-  };
-
-  const fetchDemandes = async () => {
-    try {
-      const response = await fetch("http://localhost:8000/api/pending-registrations");
       if (!response.ok) {
-        throw new Error("Erreur lors de la récupération des demandes");
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Erreur lors de la mise à jour du statut");
       }
-      const data = await response.json();
-      setDemandes(data);
+
+      const result = await response.json();
+      toast.success(`Demande ${status.toLowerCase()} avec succès !`);
+      fetchDemandes();
     } catch (error) {
       console.error("Erreur:", error);
+      toast.error(`Erreur : ${error.message}`);
     }
   };
 
   const demandesadmins = demandes.filter((demande) => demande.role === "Admin");
-
   const filteredDemandes = demandesadmins.filter((demande) =>
     statusFilter === "all" ? true : demande.status === statusFilter
   );
@@ -115,28 +94,18 @@ const DemandesTable = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
-  useEffect(() => {
-    fetchDemandes();
-  }, []);
-  
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
-  
-  const closePopup = () => {
-    setShowPopup(false);
-    setSelectedAdmin(null);
-  };
-  
+
   return (
     <div className="dashboard-admin">
       <button className="toggle-btn" onClick={toggleSidebar}>
         {isSidebarOpen ? "✕" : "☰"}
       </button>
       <SidebarSupAdmin isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
-            
       <div className="main-content">
-        <NavbarSuperAdmin className="navbar" />
+        <NavbarSuperAdmin />
         <div className="container2">
           <div className="header">
             <div>
@@ -153,7 +122,7 @@ const DemandesTable = () => {
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
-                setCurrentPage(1); // Reset to first page on filter change
+                setCurrentPage(1);
               }}
             >
               <option value="all">Tous</option>
@@ -174,66 +143,83 @@ const DemandesTable = () => {
               </tr>
             </thead>
             <tbody>
-              {currentDemandes.map((demande, index) => (
-                <tr key={index}>
-                  <td>{demande.nom}</td>
-                  <td>{demande.prenom}</td>
-                  <td>{demande.email}</td>
-                  <td>
-                    <span
-                      className={`status-badge ${
-                        demande.status === "enAttente"
-                          ? "enAttente-oval"
-                          : demande.status === "Rejetée"
-                          ? "Rejetée-oval"
-                          : "Approuvée-oval"
-                      }`}
-                    >
-                      {demande.status || "inconnu"}
-                    </span>
-                  </td>
-                  {demande.status === "enAttente" && (
-                  <td>
-                    <HiOutlineCheckCircle
-                      className="icon approve-icon"
-                      onClick={() => updateStatus(
-                        demande._id, 
-                        "Approuvée", 
-                        `${demande.prenom} ${demande.nom}`
+              {currentDemandes.length > 0 ? (
+                currentDemandes.map((demande) => (
+                  <tr
+                    key={demande._id}
+                    id={`demande-${demande._id}`}
+                    className={highlightedDemande === demande._id ? "highlight-demand" : ""}
+                  >
+                    <td>{demande.nom}</td>
+                    <td>{demande.prenom}</td>
+                    <td>{demande.email}</td>
+                    <td>
+                      <span
+                        className={`status-badge ${
+                          demande.status === "enAttente"
+                            ? "enAttente-oval"
+                            : demande.status === "Rejetée"
+                            ? "Rejetée-oval"
+                            : "Approuvée-oval"
+                        }`}
+                      >
+                        {demande.status || "inconnu"}
+                      </span>
+                    </td>
+                    <td>
+                      {demande.status === "enAttente" && (
+                        <div className="action-icons">
+                          <HiOutlineCheckCircle
+                            className="icon approve-icon"
+                            onClick={() => updateStatus(demande._id, "Approuvée")}
+                            title="Approuver"
+                          />
+                          <HiOutlineXCircle
+                            className="icon reject-icon"
+                            onClick={() => updateStatus(demande._id, "Rejetée")}
+                            title="Rejeter"
+                          />
+                        </div>
                       )}
-                      title="Approuver"
-                    />
-                    <HiOutlineXCircle
-                      className="icon reject-icon"
-                      onClick={() => updateStatus(demande._id, "Rejetée")}
-                      title="Rejeter"
-                    />
-                  </td>)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" style={{ textAlign: "center" }}>
+                    Aucune demande trouvée
+                  </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
 
-          <div className="pagination">
-            <button onClick={goToPrevPage} disabled={currentPage === 1}>
-              Précédent
-            </button>
-            <span>
-              {currentPage} / {totalPages}
-            </span>
-            <button onClick={goToNextPage} disabled={currentPage === totalPages}>
-              Suivant
-            </button>
-          </div>
+          {filteredDemandes.length > 0 && (
+            <div className="pagination">
+              <button onClick={goToPrevPage} disabled={currentPage === 1}>
+                Précédent
+              </button>
+              <span>
+                {currentPage} / {totalPages}
+              </span>
+              <button onClick={goToNextPage} disabled={currentPage === totalPages}>
+                Suivant
+              </button>
+            </div>
+          )}
         </div>
       </div>
-      
-      {/* Group Assignment Popup */}
-      <GroupAssignmentPopup 
-        isOpen={showPopup}
-        onClose={closePopup}
-        adminId={selectedAdmin?.id}
-        adminName={selectedAdmin?.name}
+
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
       />
     </div>
   );

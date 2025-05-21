@@ -26,10 +26,16 @@ import AddVehicle from "./dashboardSuperAdmin/AjoutVeh.jsx";
 import GroupeTable from "./dashboardSuperAdmin/TableGroups.jsx";
 import AddGroup from "./dashboardSuperAdmin/AjoutGroupe.jsx";
 import SAProfile from "./dashboardSuperAdmin/ProfilSA.jsx";
-
+import { NotificationProvider } from "./dashboardSuperAdmin/NotificationContext";
+import AdvancedTraccarChatbot from "./dashboardSuperAdmin/chatBot.jsx";
+import AddDeviceForm from "./dashboardSuperAdmin/AjoutVehiculeTraccar.jsx";
+import PasswordChangeSA from "./dashboardSuperAdmin/modifPasswordSA.jsx";
+import Drivers from "./dashboardAdmin/Drivers.jsx";
+import DriverSA from "./dashboardSuperAdmin/DriversSA.jsx";
 function App() {
   return (
-    <ThemeProvider>
+    <NotificationProvider>
+          <ThemeProvider>
       <AuthProvider>
         <Router>
           <Routes>
@@ -66,10 +72,17 @@ function App() {
             <Route path="/AjouterGroupe" element={<PrivateRoute><AddGroup /></PrivateRoute>} />
             <Route path='/profilSA' element={<PrivateRoute><SAProfile /></PrivateRoute>} />
             {/* <Route path="*" element={<Navigate to="/" replace />} /> */}
+            <Route path='/chatbot' element={<PrivateRoute><AdvancedTraccarChatbot /></PrivateRoute>} />
+            <Route path='/addVehiculeTraccar' element={<PrivateRoute><AddDeviceForm /></PrivateRoute>} />
+            <Route path="/modifierPasswordSA" element={<PrivateRoute><PasswordChangeSA/></PrivateRoute>} />
+            <Route path="/drivers" element={<Drivers />} />
+            <Route path="/driverSA" element={<DriverSA />} />
           </Routes>
         </Router>
       </AuthProvider>
     </ThemeProvider>
+    </NotificationProvider>
+
   );
 }
 

@@ -148,18 +148,19 @@ function VehicleRoute() {
         });
 
         // 4. Mapper les véhicules
-        const mappedVehicles = devicesResponse.data
-          .filter((device) => device.groupId === matchedGroup.id)
-          .map((device) => ({
-            id: device.id,
-            name: device.name,
-            uniqueId: device.uniqueId,
-            status: device.status,
-            groupName: adminGroupName,
-          }));
+        // Dans useEffect pour fetchVehiclesFromTraccar
+const mappedVehicles = devicesResponse.data
+  .filter((device) => device.groupId === matchedGroup.id)
+  .map((device) => ({
+    id: device.id,
+    name: device.name,
+    uniqueId: device.uniqueId,
+    status: device.status,
+    groupName: adminGroupName,
+    driverName: device.attributes?.chauffeur || 'Non assigné', // Récupérer le nom du chauffeur
+  }));
 
-        setVehicles(mappedVehicles);
-
+setVehicles(mappedVehicles);
         if (mappedVehicles.length === 0) {
           setError(`Aucun véhicule trouvé dans le groupe "${adminGroupName}"`);
         }
@@ -307,6 +308,10 @@ function VehicleRoute() {
                 <span style={{ fontSize: '13px' }}>
                   <b>Groupe:</b> {vehicle.groupName}
                 </span>
+                <br />
+                <span style={{ fontSize: '13px' }}>
+        <b>Chauffeur:</b> {vehicle.driverName}
+      </span>
               </div>
             ))
           ) : (

@@ -21,12 +21,11 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import "./trajet.css";
 
-const detectExtendedStops = async (positions, google) => {
+const detectExtendedStops = async (positions, google, minStopDuration = 5 * 60 * 1000) => {
   if (!google || positions.length < 2) return [];
 
   const extendedStops = [];
   let currentStop = null;
-  const minStopDuration = 5 * 60 * 1000; // 5 minutes
   const maxDistance = 20; // 20 mètres
   const minPointsForStop = 3; // Minimum 3 points
 
@@ -176,6 +175,7 @@ const StaticRouteMap = () => {
   const [isStatsLoaded, setIsStatsLoaded] = useState(false);
   const [autocompleteService, setAutocompleteService] = useState(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [minStopDuration, setMinStopDuration] = useState(5); // Default: 5 minutes
   const [activityStats, setActivityStats] = useState({
     totalDistance: 0,
     totalTime: 0,
@@ -222,7 +222,7 @@ const StaticRouteMap = () => {
           if (hasRecentStopQuery) {
             recommendations += `Coordonnées : ${summary.longestStop.coordinates}.`;
           } 
-           if (parseFloat(summary.longestStop.duration.replace("h ", ".").replace("min", "")) > 1) {
+          if (parseFloat(summary.longestStop.duration.replace("h ", ".").replace("min", "")) > 1) {
             recommendations += "Cet arrêt semble long. Planifiez mieux vos pauses pour optimiser votre trajet.";
           } else {
             recommendations += "Cette pause est raisonnable pour votre trajet.";
@@ -596,7 +596,7 @@ const StaticRouteMap = () => {
       }
     }
 
-    const extendedStops = await detectExtendedStops(positions, window.google);
+    const extendedStops = await detectExtendedStops(positions, window.google, minStopDuration * 60 * 1000);
 
     const stopsData = [
       { name: "En mouvement", value: Math.round(movingTime) },
@@ -642,13 +642,13 @@ const StaticRouteMap = () => {
   };
 
   // Memoize activity stats to prevent unnecessary recalculations
-  const memoizedStats = useMemo(() => calculateActivityStats(), [positions, map]);
+  const memoizedStats = useMemo(() => calculateActivityStats(), [positions, map, minStopDuration]);
 
   useEffect(() => {
     if (positions.length > 0 && window.google && map) {
       calculateActivityStats();
     }
-  }, [positions, map]);
+  }, [positions, map, minStopDuration]);
 
   // Proactive chatbot message after stats are loaded
   useEffect(() => {
@@ -926,13 +926,13 @@ const StaticRouteMap = () => {
         end: period.to !== "N/A" ? new Date(period.to).toLocaleString() : "N/A",
       },
       
-    realRoute: {
-      distance: activityStats.totalDistance.toFixed(2) + " km",
-      duration: formatDuration(activityStats.totalTime),
-      averageSpeed: activityStats.averageSpeed.toFixed(2) + " km/h",
-      movingAverageSpeed: activityStats.movingAverageSpeed.toFixed(2) + " km/h",
-      maxSpeed: activityStats.maxSpeed.toFixed(2) + " km/h",
-    },
+      realRoute: {
+        distance: activityStats.totalDistance.toFixed(2) + " km",
+        duration: formatDuration(activityStats.totalTime),
+        averageSpeed: activityStats.averageSpeed.toFixed(2) + " km/h",
+        movingAverageSpeed: activityStats.movingAverageSpeed.toFixed(2) + " km/h",
+        maxSpeed: activityStats.maxSpeed.toFixed(2) + " km/h",
+      },
       
       idealRoute: idealRouteData
         ? {
@@ -1274,115 +1274,116 @@ const StaticRouteMap = () => {
       </div>
 
       {showSummary && (
-  <div className="activity-modal-overlay">
-    <div className="activity-modal">
-      <h2 style={{ color: "darkblue", marginBottom: "15px" }}>
-        Résumé Analytique - {location.state?.vehicleName}
-      </h2>
-      <button onClick={handleShowSummary}>×</button>
+        <div className="activity-modal-overlay">
+          <div className="activity-modal">
+            <h2 style={{ color: "darkblue", marginBottom: "15px" }}>
+              Résumé Analytique - {location.state?.vehicleName}
+            </h2>
+            <button onClick={handleShowSummary}>×</button>
 
-      {isStatsLoading ? (
-        <p>Chargement des statistiques...</p>
-      ) : (
-        (() => {
-          const summary = generateAnalyticalSummary();
-          return (
-            <>
-              <div>
-                <h3>Informations du Véhicule</h3>
-                <p>
-                  <strong>Nom :</strong> {summary.vehicle.name}
-                </p>
-
-                <h3>Période Analysée</h3>
-                <p>
-                  <strong>Début :</strong> {summary.period.start}
-                </p>
-                <p>
-                  <strong>Fin :</strong> {summary.period.end}
-                </p>
-
-                <h3>Trajet Effectué</h3>
-                <p>
-                  <strong>Distance :</strong> {summary.realRoute.distance}
-                </p>
-                <p>
-                  <strong>Durée :</strong> {summary.realRoute.duration}
-                </p>
-                <p>
-                  <strong>Vitesse Moyenne (globale) :</strong> {summary.realRoute.averageSpeed}
-                </p>
-                <p>
-                  <strong>Vitesse Moyenne (en mouvement) :</strong> {summary.realRoute.movingAverageSpeed}
-                </p>
-                <p>
-                  <strong>Vitesse Maximale :</strong> {summary.realRoute.maxSpeed}
-                </p>
-
-                <h3>Trajet Idéal</h3>
-                <p>
-                  <strong>Distance :</strong> {summary.idealRoute.distance}
-                </p>
-                <p>
-                  <strong>Durée :</strong> {summary.idealRoute.duration}
-                </p>
-
-                <h3>Arrêt Prolongé</h3>
-                {summary.longestStop ? (
+            {isStatsLoading ? (
+              <p>Chargement des statistiques...</p>
+            ) : (
+              (() => {
+                const summary = generateAnalyticalSummary();
+                return (
                   <>
-                    <p>
-                      <strong>Adresse :</strong> {summary.longestStop.address}
-                    </p>
-                    <p>
-                      <strong>Durée :</strong> {summary.longestStop.duration}
-                    </p>
-                    <p>
-                      <strong>Début :</strong> {summary.longestStop.startTime}
-                    </p>
-                    <p>
-                      <strong>Fin :</strong> {summary.longestStop.endTime}
-                    </p>
-                    <p>
-                      <strong>Coordonnées :</strong> {summary.longestStop.coordinates}
-                    </p>
-                  </>
-                ) : (
-                  <p>Aucun arrêt prolongé détecté.</p>
-                )}
+                    <div>
+                      <h3>Informations du Véhicule</h3>
+                      <p>
+                        <strong>Nom :</strong> {summary.vehicle.name}
+                      </p>
 
-                <h3>Résumé des Activités</h3>
-                <p>
-                  <strong>Temps en mouvement :</strong> {summary.activitySummary.movingTime}
-                </p>
-                <p>
-                  <strong>Temps à l'arrêt :</strong> {summary.activitySummary.stoppedTime}
-                </p>
-                <h4>Distribution du temps par période</h4>
-                <ul>
-                  {summary.activitySummary.timeDistribution.map((period, index) => (
-                    <li key={index}>
-                      {period.period} : {period.minutes} minutes
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              
-              <div className="pdf-button-container">
-  <button
-    className="pdf-button"
-    onClick={saveActivityReportAsPDF}
-    disabled={isStatsLoading}
-  >
-    {isStatsLoading ? "Génération..." : "Exporter en PDF"}
-  </button>
-</div>
-            </>
-          );
-        })()
+                      <h3>Période Analysée</h3>
+                      <p>
+                        <strong>Début :</strong> {summary.period.start}
+                      </p>
+                      <p>
+                        <strong>Fin :</strong> {summary.period.end}
+                      </p>
+
+                      <h3>Trajet Effectué</h3>
+                      
+                      <p>
+                        <strong>Distance :</strong> {summary.realRoute.distance}
+                      </p>
+                      <p>
+                        <strong>Durée :</strong> {summary.realRoute.duration}
+                      </p>
+                      <p>
+                        <strong>Vitesse Moyenne (globale) :</strong> {summary.realRoute.averageSpeed}
+                      </p>
+                      <p>
+                        <strong>Vitesse Moyenne (en mouvement) :</strong> {summary.realRoute.movingAverageSpeed}
+                      </p>
+                      <p>
+                        <strong>Vitesse Maximale :</strong> {summary.realRoute.maxSpeed}
+                      </p>
+
+                      <h3>Trajet Idéal</h3>
+                      <p>
+                        <strong>Distance :</strong> {summary.idealRoute.distance}
+                      </p>
+                      <p>
+                        <strong>Durée :</strong> {summary.idealRoute.duration}
+                      </p>
+
+                      <h3>Arrêt Prolongé</h3>
+                      {summary.longestStop ? (
+                        <>
+                          <p>
+                            <strong>Adresse :</strong> {summary.longestStop.address}
+                          </p>
+                          <p>
+                            <strong>Durée :</strong> {summary.longestStop.duration}
+                          </p>
+                          <p>
+                            <strong>Début :</strong> {summary.longestStop.startTime}
+                          </p>
+                          <p>
+                            <strong>Fin :</strong> {summary.longestStop.endTime}
+                          </p>
+                          <p>
+                            <strong>Coordonnées :</strong> {summary.longestStop.coordinates}
+                          </p>
+                        </>
+                      ) : (
+                        <p>Aucun arrêt prolongé détecté.</p>
+                      )}
+
+                      <h3>Résumé des Activités</h3>
+                      <p>
+                        <strong>Temps en mouvement :</strong> {summary.activitySummary.movingTime}
+                      </p>
+                      <p>
+                        <strong>Temps à l'arrêt :</strong> {summary.activitySummary.stoppedTime}
+                      </p>
+                      <h4>Distribution du temps par période</h4>
+                      <ul>
+                        {summary.activitySummary.timeDistribution.map((period, index) => (
+                          <li key={index}>
+                            {period.period} : {period.minutes} minutes
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  
+                    <div className="pdf-button-container">
+                      <button
+                        className="pdf-button"
+                        onClick={saveActivityReportAsPDF}
+                        disabled={isStatsLoading}
+                      >
+                        {isStatsLoading ? "Génération..." : "Exporter en PDF"}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()
+            )}
+          </div>
+        </div>
       )}
-    </div>
-  </div>
-)}
 
       {showActivityReport && (
         <div className="activity-modal-overlay">
@@ -1531,26 +1532,44 @@ const StaticRouteMap = () => {
 
               {activeTab === "arrets" && (
                 <div>
+                  <div className="stats-card">
+                    <h3>Filtres des arrêts</h3>
+                    <label htmlFor="minStopDuration">Durée minimale de l'arrêt :</label>
+                    <select
+                      id="minStopDuration"
+                      value={minStopDuration}
+                      onChange={(e) => setMinStopDuration(Number(e.target.value))}
+                      className="duration-select"
+                    >
+                      <option value={5}>5 minutes</option>
+                      <option value={15}>15 minutes</option>
+                      <option value={30}>30 minutes</option>
+                      <option value={45}>45 minutes</option>
+                      <option value={60}>1 heure</option>
+                    </select>
+                  </div>
                   {activityStats.extendedStops.length > 0 ? (
-                    activityStats.extendedStops.map((stop, index) => (
-                      <div key={index} className="stats-card">
-                        <h3>Arrêt {index + 1}</h3>
-                        <p>
-                          <strong>Début:</strong> {formatTime(stop.startTime)}
-                        </p>
-                        <p>
-                          <strong>Fin:</strong> {formatTime(stop.endTime)}
-                        </p>
-                        <p>
-                          <strong>Durée:</strong> {formatDuration(stop.duration)}
-                        </p>
-                        <p>
-                          <strong>Adresse:</strong> {stop.address}
-                        </p>
-                      </div>
-                    ))
+                    activityStats.extendedStops
+                      .filter((stop) => stop.duration >= minStopDuration)
+                      .map((stop, index) => (
+                        <div key={index} className="stats-card">
+                          <h3>Arrêt {index + 1}</h3>
+                          <p>
+                            <strong>Début:</strong> {formatTime(stop.startTime)}
+                          </p>
+                          <p>
+                            <strong>Fin:</strong> {formatTime(stop.endTime)}
+                          </p>
+                          <p>
+                            <strong>Durée:</strong> {formatDuration(stop.duration)}
+                          </p>
+                          <p>
+                            <strong>Adresse:</strong> {stop.address}
+                          </p>
+                        </div>
+                      ))
                   ) : (
-                    <p>Aucun arrêt prolongé détecté.</p>
+                    <p>Aucun arrêt prolongé détecté pour la durée sélectionnée ({minStopDuration} minutes).</p>
                   )}
                 </div>
               )}

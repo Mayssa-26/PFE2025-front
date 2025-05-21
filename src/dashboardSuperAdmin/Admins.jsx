@@ -41,25 +41,42 @@ const TousAdmins = () => {
     fetchAdminsWithGroups();
   }, []);
 
-  const handleDelete = async () => {
-    if (!selectedId) return;
-  
-    try {
-      const response = await fetch(
-        `http://localhost:8000/api/user/deleteAdmin/${selectedId}`, // 🧭 correspond à req.params.id
-        { method: "DELETE" }
-      );
-  
-      if (!response.ok) throw new Error("Échec de la suppression");
-  
-      // Mise à jour locale de la liste
-      setAdmins(admins.filter(admin => admin._id !== selectedId));
-      setShowModal(false);
-    } catch (error) {
-      console.error("Erreur de suppression:", error);
-      alert(`Erreur: ${error.message}`);
+const handleDelete = async () => {
+  if (!selectedId) return;
+
+  try {
+    const response = await fetch(
+      `http://localhost:8000/api/user/deleteAdmin/${selectedId}`,
+      { 
+        method: "DELETE",
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
+    );
+
+    const responseData = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(responseData.message || "Échec de la suppression");
     }
-  };
+
+    // Debug: Vérification des données reçues
+    console.log("Réponse complète du serveur:", responseData);
+    
+    // Mise à jour optimiste de l'interface
+    setAdmins(prev => prev.filter(admin => admin._id !== selectedId));
+    setShowModal(false);
+
+    // Message de succès
+    alert(`✅ ${responseData.message}`);
+    
+  } catch (error) {
+    console.error("Erreur de suppression:", error);
+    alert(`❌ Erreur: ${error.message}`);
+  }
+};
+
   
 
   const handleEdit = (admin) => {

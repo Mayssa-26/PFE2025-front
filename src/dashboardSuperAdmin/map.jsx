@@ -70,17 +70,39 @@ function VehicleRouteSA() {
     };
   }, []);
 
-  const fetchVehicles = () => {
-    axios.get('https://yepyou.treetronix.com/api/devices', {
+const fetchVehicles = async () => {
+  try {
+    // 1. Récupérer la liste des groupes
+    const groupsResponse = await axios.get('https://yepyou.treetronix.com/api/groups', {
       auth: { username: 'admin', password: 'admin' },
-    })
-      .then((response) => {
-        setVehicles(response.data);
-      })
-      .catch((error) => {
-        console.error('Erreur lors du chargement des véhicules:', error);
-      });
-  };
+    });
+
+    // 2. Créer une map des groupId vers les noms des groupes
+    const groupMap = groupsResponse.data.reduce((map, group) => {
+      map[group.id] = group.name;
+      return map;
+    }, {});
+
+    // 3. Récupérer la liste des dispositifs
+    const devicesResponse = await axios.get('https://yepyou.treetronix.com/api/devices', {
+      auth: { username: 'admin', password: 'admin' },
+    });
+
+    // 4. Mapper les véhicules avec le nom du groupe
+    const mappedVehicles = devicesResponse.data.map((device) => ({
+      id: device.id,
+      name: device.name,
+      uniqueId: device.uniqueId,
+      status: device.status,
+      groupe: groupMap[device.groupId] || 'Non assigné', // Associer le nom du groupe
+      driverName: device.attributes?.chauffeur || 'Non assigné', // Nom du chauffeur
+    }));
+
+    setVehicles(mappedVehicles);
+  } catch (error) {
+    console.error('Erreur lors du chargement des véhicules:', error);
+  }
+};
 
   useEffect(() => {
     fetchVehicles();
@@ -199,7 +221,10 @@ function VehicleRouteSA() {
             >
               <strong>{vehicle.name}</strong><br />
               <span style={{ fontSize: '13px' }}><b>ID:</b> {vehicle.uniqueId}</span><br />
-              <span style={{ fontSize: '13px' }}><b>Status:</b> {vehicle.status}</span>
+              <span style={{ fontSize: '13px' }}><b>Status:</b> {vehicle.status}</span><br />
+              <span style={{ fontSize: '13px' }}><b>Groupe:</b> {vehicle.groupe}</span><br />
+              <span style={{ fontSize: '13px' }}><b>Chauffeur:</b> {vehicle.driverName}</span>
+              
             </div>
           ))}
         </div>

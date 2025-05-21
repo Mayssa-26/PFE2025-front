@@ -6,11 +6,11 @@ import "./SideBar.css";
 import "./NavBar.css";
 import axios from "axios";
 import { ShoppingBag, BarChart2, PieChart, TrendingUp } from "lucide-react";
-import { FaSearch } from "react-icons/fa";
+import { FaSearch, FaArrowRight } from "react-icons/fa";
 import "./tous.css";
 import { useNavigate } from "react-router-dom";
 import jwt_decode from "jwt-decode";
-import { FaArrowRight } from 'react-icons/fa';
+
 const DashAdmin = () => {
   const navigate = useNavigate();
   const donutRef = useRef(null);
@@ -18,7 +18,7 @@ const DashAdmin = () => {
   const [stats, setStats] = useState({
     vehiculesAvecCapteur: 0,
     vehiculesSansCapteur: 0,
-    telephones: 0,
+    chauffeurs: 0,
     positions: 0,
   });
 
@@ -29,16 +29,20 @@ const DashAdmin = () => {
   const [error, setError] = useState(null);
   const [currentPage] = useState(1);
   const [offlineCount, setOfflineCount] = useState(0);
+  const [adminGroupName, setAdminGroupName] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const vehiclesPerPage = 5;
   const currentVehicles = vehiclesWithSensors.slice(
     (currentPage - 1) * vehiclesPerPage,
     currentPage * vehiclesPerPage
   );
 
-  const filteredVehicles = vehiclesWithSensors.filter((vehicle) =>
-    vehicle.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.id?.toString().includes(searchTerm) ||
-    (vehicle.groupId && vehicle.groupId.toString().includes(searchTerm))
+  const filteredVehicles = vehiclesWithSensors.filter(
+    (vehicle) =>
+      vehicle.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle.id?.toString().includes(searchTerm) ||
+      (vehicle.groupName &&
+        vehicle.groupName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   useEffect(() => {
@@ -58,12 +62,12 @@ const DashAdmin = () => {
     const total =
       stats.vehiculesAvecCapteur +
       stats.vehiculesSansCapteur +
-      stats.telephones +
+      stats.chauffeurs +
       stats.positions;
     const data = [
       { color: "#4CAF50", value: stats.vehiculesAvecCapteur / total },
       { color: "#F44336", value: stats.vehiculesSansCapteur / total },
-      { color: "#FFC107", value: stats.telephones / total },
+      { color: "#FFC107", value: stats.chauffeurs / total },
       { color: "#2196F3", value: stats.positions / total },
     ];
     let startAngle = -0.25 * 2 * Math.PI;
@@ -87,47 +91,157 @@ const DashAdmin = () => {
     const fetchData = async () => {
       setLoading((prev) => ({ ...prev, vehicles: true, adminStats: true }));
       setError(null);
+
       try {
         const token = localStorage.getItem("token");
         let currentAdminId = null;
-        if (token) {
-          const decoded = jwt_decode(token);
-          currentAdminId = decoded.id;
+        if (!token) {
+          navigate("/login");
+          return;
         }
 
-        // Fetch vehicles with sensors from /api/devices
+        try {
+          const decoded = jwt_decode(token);
+          currentAdminId = decoded.id;
+          setIsAuthenticated(true);
+        } catch (tokenError) {
+          console.error("Erreur token:", tokenError);
+          localStorage.removeItem("token");
+          navigate("/login");
+          return;
+        }
+
+        // Fetch admin's group
+        console.log('Fetching admin group for ID:', currentAdminId);
+        const adminResponse = await axios.get(
+          `/api/vehicules/admin/${currentAdminId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        console.log("Admin API Response:", adminResponse.data);
+
+        let groupName;
+        if (adminResponse.data?.success) {
+          const groupData = adminResponse.data.data[0] || adminResponse.data.data;
+          groupName =
+            groupData?.nom || groupData?.name || groupData?.groupName;
+          if (groupName) {
+            setAdminGroupName(groupName);
+          } else {
+            console.warn("Group data structure:", groupData);
+            throw new Error(
+              `Group name not found in response for admin ${currentAdminId}`
+            );
+          }
+        } else {
+          throw new Error(
+            adminResponse.data?.message ||
+              `No group assigned to admin ${currentAdminId}`
+          );
+        }
+
+        // Fetch vehicles without sensors
+        const vehiclesWithoutSensors = adminResponse.data.data[0]?.vehicules || [];
+        const vehiculesSansCapteur = vehiclesWithoutSensors.length;
+
+        // Fetch vehicles from Traccar
+        if (!groupName) {
+          throw new Error("Admin group name not available");
+        }
+
+        // Fetch all groups from Traccar
+        console.log('Fetching groups from Traccar...');
+        const groupsResponse = await axios.get(
+          "https://yepyou.treetronix.com/api/groups",
+          {
+            headers: {
+              Authorization: "Basic " + btoa("admin:admin"),
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+          }
+        );
+        console.log("Traccar Groups Response:", groupsResponse.data);
+
+        // Find the group matching adminGroupName
+        const matchedGroup = groupsResponse.data.find(
+          (group) => group.name.toLowerCase() === groupName.toLowerCase()
+        );
+
+        if (!matchedGroup) {
+          throw new Error(`No group named "${groupName}" found in Traccar`);
+        }
+        console.log('Matched group:', matchedGroup);
+
+        // Fetch vehicles for the matched group
+        console.log('Fetching devices for group ID:', matchedGroup.id);
         const devicesResponse = await axios.get(
           "https://yepyou.treetronix.com/api/devices",
           {
-            headers: { Authorization: "Basic " + btoa("admin:admin") },
+            params: {
+              groupId: matchedGroup.id,
+            },
+            headers: {
+              Authorization: "Basic " + btoa("admin:admin"),
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
           }
         );
-        const vehiclesWithSensorsData = devicesResponse.data || [];
-        setVehiclesWithSensors(vehiclesWithSensorsData);
+        console.log("Traccar Devices Response:", devicesResponse.data);
 
-        const vehiculesAvecCapteur = vehiclesWithSensorsData.filter(
-          (v) => v.hasSensor
-        ).length;
-        const offlineVehicles = vehiclesWithSensorsData.filter(
+        // Validate response
+        if (!Array.isArray(devicesResponse.data)) {
+          throw new Error("Invalid data format from /api/devices: Expected an array");
+        }
+
+        // Calculate unique chauffeurs
+        const uniqueChauffeurs = new Set(
+          devicesResponse.data
+            .filter((device) => device.groupId === matchedGroup.id && device.attributes?.chauffeur)
+            .map((device) => device.attributes.chauffeur)
+        );
+        const chauffeursCount = uniqueChauffeurs.size;
+
+        // Map and filter vehicles
+        const mappedVehicles = devicesResponse.data
+          .filter((device) => device.groupId === matchedGroup.id)
+          .map((device) => ({
+            id: device.id,
+            name: device.name,
+            groupId: device.groupId,
+            groupName: groupName,
+            status: device.status === "online" ? "online" : "offline",
+            lastUpdate: device.lastUpdate,
+            isPhone: device.category === "phone",
+            positions: device.positions || 0,
+            originalData: device,
+          }));
+
+        setVehiclesWithSensors(mappedVehicles);
+        const vehiculesAvecCapteur = mappedVehicles.length;
+
+        if (vehiculesAvecCapteur === 0) {
+          console.warn(
+            `No vehicles found in group "${groupName}" (ID: ${matchedGroup.id})`
+          );
+        }
+
+        const offlineVehicles = mappedVehicles.filter(
           (v) => v.status !== "online"
         );
         setOfflineCount(offlineVehicles.length);
-
-        // Fetch vehicles without sensors for the admin
-        const adminVehiclesResponse = await axios.get(
-          `/api/vehicules/admin/${currentAdminId}`
-        );
-        const vehiclesWithoutSensors =
-          adminVehiclesResponse.data.data[0]?.vehicules || [];
-        const vehiculesSansCapteur = vehiclesWithoutSensors.length; // All vehicles from this API are without sensors
 
         // Update stats
         setStats((prev) => ({
           ...prev,
           vehiculesAvecCapteur,
           vehiculesSansCapteur,
-          telephones: vehiclesWithSensorsData.filter((v) => v.isPhone).length,
-          positions: vehiclesWithSensorsData.reduce(
+          chauffeurs: chauffeursCount,
+          positions: mappedVehicles.reduce(
             (acc, v) => acc + (v.positions || 0),
             0
           ),
@@ -140,6 +254,7 @@ const DashAdmin = () => {
             adminName: `Admin ${currentAdminId}`,
             vehiculesAvecCapteur,
             vehiculesSansCapteur,
+            chauffeurs: chauffeursCount,
           },
         ]);
 
@@ -152,7 +267,7 @@ const DashAdmin = () => {
         }
       } catch (error) {
         console.error("Error fetching data:", error);
-        setError("Erreur lors de la récupération des données.");
+        setError(`Erreur lors de la récupération des données: ${error.message}`);
       } finally {
         setLoading((prev) => ({ ...prev, vehicles: false, adminStats: false }));
       }
@@ -161,7 +276,7 @@ const DashAdmin = () => {
     fetchData();
     const interval = setInterval(fetchData, 300000);
     return () => clearInterval(interval);
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="dashboard-admin">
@@ -203,11 +318,11 @@ const DashAdmin = () => {
                 <div className="stat-icon yellow">
                   <PieChart size={24} />
                 </div>
-                <div className="stat-badge green">+{stats.telephones}%</div>
+                <div className="stat-badge green">+{stats.chauffeurs}%</div>
               </div>
               <div className="stat-content">
-                <h2 className="stat-value">{stats.telephones}</h2>
-                <p className="stat-label">Téléphones</p>
+                <h2 className="stat-value">{stats.chauffeurs}</h2>
+                <p className="stat-label">Chauffeurs</p>
               </div>
             </div>
             <div className="stat-card">
@@ -218,7 +333,7 @@ const DashAdmin = () => {
                 <div className="stat-badge pink">+{stats.positions / 3}%</div>
               </div>
               <div className="stat-content">
-                <h2 className="stat-value">{stats.positions}</h2>
+                <h2 className="stat-value">+50</h2>
                 <p className="stat-label">Positions</p>
               </div>
             </div>
@@ -242,6 +357,10 @@ const DashAdmin = () => {
                           <h5>Véhicules sans capteur</h5>
                           <p>{admin.vehiculesSansCapteur}</p>
                         </div>
+                        <div className="stat">
+                          <h5>Chauffeurs</h5>
+                          <p>{admin.chauffeurs}</p>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -258,12 +377,11 @@ const DashAdmin = () => {
                 <div className="donut-value">
                   {stats.vehiculesAvecCapteur +
                     stats.vehiculesSansCapteur +
-                    stats.telephones +
+                    stats.chauffeurs +
                     stats.positions}
                 </div>
               </div>
             </div>
-            
           </div>
 
           {error && (
@@ -272,21 +390,36 @@ const DashAdmin = () => {
               <button onClick={() => setError(null)}>×</button>
             </div>
           )}
-<div className="search-container">
-              <FaSearch className="search-icon" />
-              <input
-                type="text"
-                placeholder="Rechercher par nom, ID ou groupe..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="search-input"
-              />
-            </div>
+
+          <div className="search-container">
+            <FaSearch className="search-icon" />
+            <input
+              type="text"
+              placeholder="Rechercher par nom, ID ou groupe..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+          </div>
+
           {loading.vehicles ? (
             <div className="loading">Chargement des véhicules...</div>
           ) : filteredVehicles.length === 0 ? (
             <div className="no-results">
-              Aucun véhicule trouvé {searchTerm && `pour "${searchTerm}"`}
+              Aucun véhicule avec capteur trouvé.{" "}
+              {searchTerm && `Recherche: "${searchTerm}"`}
+              {!searchTerm && vehiclesWithSensors.length === 0 && (
+                <span>
+                  Vérifiez la connexion à l'API ou l'assignation des groupes.
+                </span>
+              )}
+              {!searchTerm &&
+                vehiclesWithSensors.length === 0 &&
+                stats.vehiculesAvecCapteur === 0 && (
+                  <span>
+                    Aucun véhicule dans le groupe {adminGroupName} assigné à l'admin.
+                  </span>
+                )}
             </div>
           ) : (
             <>
@@ -304,7 +437,7 @@ const DashAdmin = () => {
                     <tr key={vehicle.id}>
                       <td>{vehicle.name || "N/A"}</td>
                       <td>{vehicle.id || "N/A"}</td>
-                      <td>{vehicle.groupId || "-"}</td>
+                      <td>{vehicle.groupName || "-"}</td>
                       <td>
                         <span
                           className={`status-badge ${

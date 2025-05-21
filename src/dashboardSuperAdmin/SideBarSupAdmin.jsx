@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaMapMarked, FaHandSpock, FaSignOutAlt,FaCog } from 'react-icons/fa';
-import {FaPeopleGroup} from 'react-icons/fa6';
+import { FaMapMarked, FaHandSpock, FaSignOutAlt, FaCog } from 'react-icons/fa';
+import { FaPeopleGroup } from 'react-icons/fa6';
 import { MdDriveEta } from 'react-icons/md';
 import { Link } from 'react-router-dom';
 import { FileText } from 'lucide-react';
@@ -13,14 +13,23 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
   const { userName, logout } = useAuth();
   const navigate = useNavigate();
   const [showVoitureSubMenu, setShowVoitureSubMenu] = useState(false);
+  const [showSettingsSubMenu, setShowSettingsSubMenu] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/');
   };
 
+  const openLogoutModal = () => {
+    setIsLogoutModalOpen(true);
+  };
+
+  const closeLogoutModal = () => {
+    setIsLogoutModalOpen(false);
+  };
+
   const toggleVoitureSubMenu = () => setShowVoitureSubMenu(!showVoitureSubMenu);
-  const [showSettingsSubMenu, setShowSettingsSubMenu] = useState(false);
   const toggleSettingsSubMenu = () => setShowSettingsSubMenu(!showSettingsSubMenu);
   
   return (
@@ -28,7 +37,7 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
       <div className={`sidebar ${isSidebarOpen ? 'show' : ''}`}>
         <div className="sidebar-header">
           <h3 className="sidebar-title">
-            {userName ? `${userName}` : 'Vue de l’utilisateur'} <span>View</span>
+            {userName ? `${userName}` : 'Vue de l\'utilisateur'} <span>View</span>
           </h3>
         </div>
 
@@ -39,11 +48,15 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
                 <FaHandSpock className="nav-icon" /> ----Admins
               </Link>
             </div>
+              <div className="nav-item">
+              <Link to="/driverSA" className="color">
+                <FaHandSpock className="nav-icon" /> ----Chauffeurs
+              </Link>
+            </div>
 
             <div className="nav-item" onClick={toggleVoitureSubMenu}>
               <MdDriveEta className="nav-icon" /> ----Véhicules
               <ul className={`sub-menu ${showVoitureSubMenu ? 'open' : ''}`}>
-                
                 <li>
                   <Link to="/VehiculesAvecCapteurSA">Véhicules avec capteur</Link>
                 </li>
@@ -72,37 +85,60 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
             </div>
           </nav>
         </div>
+        
         <div className="nav-item" onClick={toggleSettingsSubMenu}>
-              <FaCog className="nav-icon" />
-              ----Paramètres
-              <ul className={`sub-menu ${showSettingsSubMenu ? "open" : ""}`}>
-                <li><Link to="/profilSA">Profil Super Administrateur</Link></li>
-                
-      
-                <li>
-                  Sécurité
-                  <ul>
-                    <li><Link to="/modifierPassword">Modifier mot de passe</Link></li>
-                    </ul>
-                </li>
-                
+          <FaCog className="nav-icon" />
+          ----Paramètres
+          <ul className={`sub-menu ${showSettingsSubMenu ? "open" : ""}`}>
+            <li><Link to="/profilSA">Profil Super Administrateur</Link></li>
+            <li>
+              Sécurité
+              <ul>
+                <li><Link to="/modifierPasswordSA">Modifier mot de passe</Link></li>
               </ul>
-            </div>
+            </li>
+          </ul>
+        </div>
 
-        <button className="logout-button" onClick={handleLogout}>
+        <button className="logout-button" onClick={openLogoutModal}>
           <FaSignOutAlt className="logout-icon" /> Se déconnecter
         </button>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {isLogoutModalOpen && (
+        <div className="logout-modal-overlay">
+          <div className="logout-modal-container">
+            <h2 className="logout-modal-title">Confirmation de déconnexion</h2>
+            <p className="logout-modal-message">Êtes-vous sûr de vouloir vous déconnecter ?</p>
+            <div className="logout-modal-actions">
+              <button 
+                onClick={closeLogoutModal} 
+                className="logout-modal-cancel"
+              >
+                Annuler
+              </button>
+              <button 
+                onClick={handleLogout} 
+                className="logout-modal-confirm"
+              >
+                Se déconnecter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isSidebarOpen && (
         <div className="sidebar-overlay" onClick={toggleSidebar} />
       )}
     </div>
   );
 };
+
 SidebarSupAdmin.propTypes = {
   isSidebarOpen: PropTypes.bool.isRequired,
   toggleSidebar: PropTypes.func.isRequired,
-  userName: PropTypes.string,
-  logout: PropTypes.func.isRequired
 };
+
 export default SidebarSupAdmin;

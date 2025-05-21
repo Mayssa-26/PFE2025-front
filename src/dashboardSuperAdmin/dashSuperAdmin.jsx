@@ -234,7 +234,7 @@ const DashSuperAdmin = () => {
                   </div>
                 </div>
                 <div className="stat-content">
-                  <h2 className="stat-value">{stats.positions}</h2>
+                  <h2 className="stat-value">+ 100 </h2>
                   <p className="stat-label">Positions</p>
                 </div>
               </div>

@@ -1,44 +1,74 @@
 import { FaBell } from "react-icons/fa";
-import PropTypes from 'prop-types';
+import { Link, useNavigate } from "react-router-dom";
+import { useState, useContext } from "react";
+import { NotificationContext } from "./NotificationContext";
 import "../dashboardAdmin/NavBar.css";
-import { Link } from "react-router-dom";
-import { useState } from "react";
 
+const NavbarSuperAdmin = () => {
+  const { notifications, removeNotification } = useContext(NotificationContext);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const navigate = useNavigate();
 
-const NavbarSuperAdmin = ({ offlineCount }) => {
-     const [showTooltip, setShowTooltip] = useState(false); // 👈 état pour afficher ou cacher le message
-    
-        const toggleTooltip = () => {
-            setShowTooltip(prev => !prev); // 👈 clic = on inverse visible/caché
-        };
-    
-    return (
-        <div className="navbar">
-            <Link to="/dashboardSuperAdmin" className="navbar-title">Home</Link>
+  console.log("Notifications actuelles dans NavbarSuperAdmin:", notifications);
 
-            <div className="notification-area">
-                
-                <div className="notification-icon" onClick={toggleTooltip}>
-                    <FaBell />
-                    {offlineCount > 0 && (
-                        <>
-                            <span className="notification-badge">{offlineCount}</span>
-                            {showTooltip && (
-  <div className={`notification-tooltip ${showTooltip ? 'show' : ''}`}>
-    {offlineCount} véhicule(s) hors ligne
-  </div>
-)}
-                        </>
-                    )}
-                </div>
-            </div>
-            <Link to='/profilSA' className="profile-button" >Profile</Link>
+  const toggleNotifications = (event) => {
+    event.stopPropagation();
+    console.log("Toggling notifications, current state:", showNotifications);
+    setShowNotifications((prev) => !prev);
+  };
+
+  const handleNotificationClick = (demandeId) => {
+    console.log("Notification clicked, demandeId:", demandeId);
+    removeNotification(demandeId);
+    setShowNotifications(false);
+    navigate("/demandes", { state: { highlightedDemandeId: demandeId } });
+  };
+
+  return (
+    <div className="navbar">
+      <Link to="/dashboardSuperAdmin" className="navbar-title">
+        Home
+      </Link>
+
+      <div className="notification-area">
+        <div
+          className="notification-icon"
+          onClick={toggleNotifications}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === "Enter" && toggleNotifications(e)}
+        >
+          <FaBell />
+          {notifications.length > 0 && (
+            <span className="notification-badge">{notifications.length}</span>
+          )}
         </div>
-    );
-};
-
-NavbarSuperAdmin.propTypes = {
-    offlineCount: PropTypes.number.isRequired
+        {showNotifications && notifications.length > 0 && (
+          <div className="notification-dropdown">
+            <ul>
+              {notifications.map((notif) => (
+                <li
+                  key={notif.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNotificationClick(notif.id);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && handleNotificationClick(notif.id)}
+                >
+                  {notif.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+      <Link to="/profilSA" className="profile-button">
+        Profile
+      </Link>
+    </div>
+  );
 };
 
 export default NavbarSuperAdmin;

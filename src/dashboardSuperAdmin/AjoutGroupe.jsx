@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import "./AjoutGroup.css";
 import SidebarSupAdmin from "./SideBarSupAdmin";
 import NavbarSuperAdmin from "./NavBarSupAdmin";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const AddGroup = () => {
   const process = window.process || { env: {} };
@@ -11,21 +14,28 @@ const AddGroup = () => {
 
   const [formData, setFormData] = useState({
     nom: "",
+    admin: "",
   });
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState("");
+  const [admins, setAdmins] = useState([]);
 
-  // Réinitialiser le message après 5 secondes
+  // Fetch admins without groups
   useEffect(() => {
-    if (message) {
-      const timer = setTimeout(() => {
-        setMessage("");
-        setMessageType("");
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [message]);
+    const fetchAdmins = async () => {
+      try {
+        const response = await axios.get(`${apiUrl}/groupes/getAdminsWithoutGroups`);
+        setAdmins(response.data);
+      } catch (error) {
+        const errorMessage =
+          error.response?.status === 404
+            ? "Aucun admin sans groupe trouvé"
+            : error.response?.data?.message || "Erreur lors de la récupération des admins";
+        toast.error(errorMessage);
+      }
+    };
+
+    fetchAdmins();
+  }, [apiUrl]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -34,60 +44,79 @@ const AddGroup = () => {
 
   const validateForm = () => {
     if (!formData.nom.trim()) {
-      setMessage("Le nom du groupe est obligatoire");
-      setMessageType("error");
+      toast.error("Le nom du groupe est obligatoire");
       return false;
     }
     if (formData.nom.trim().length < 3) {
-      setMessage("Le nom du groupe doit contenir au moins 3 caractères");
-      setMessageType("error");
+      toast.error("Le nom du groupe doit contenir au moins 3 caractères");
       return false;
     }
     return true;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    if (!validateForm()) {
-      return;
-    }
+  if (!validateForm()) {
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const response = await fetch(`${apiUrl}/groupes/createGroupe`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+  try {
+    const payload = {
+      nom: formData.nom,
+      admin: formData.admin || null,
+    };
+    console.log("Payload sent to backend:", payload);
 
-      const data = await response.json();
+    // 1. Créer le groupe dans votre base de données
+    const response = await axios.post(`${apiUrl}/groupes/createGroupe`, payload);
+    console.log("Backend response:", response.data);
 
-      if (!response.ok) {
-        if (response.status === 400 && data.message.includes("existe déjà")) {
-          throw new Error("Un groupe avec ce nom existe déjà");
-        } else if (response.status === 400 && data.errors) {
-          throw new Error(data.errors.join(", "));
-        } else {
-          throw new Error(data.message || "Erreur lors de l'ajout du groupe");
-        }
+    // 2. Si la création dans votre BD est réussie, créer le groupe dans Traccar
+    if (response.data.success) {
+      try {
+        const traccarPayload = {
+          name: formData.nom,
+          // Ajoutez d'autres champs nécessaires pour Traccar si besoin
+        };
+
+        // Assurez-vous que cette URL correspond à votre endpoint Traccar
+        const traccarResponse = await axios.post(
+          `${apiUrl}/traccar/groups`, // Remplacez par votre endpoint Traccar
+          traccarPayload,
+          {
+            headers: {
+              // Ajoutez les headers nécessaires pour l'authentification Traccar
+              'Authorization': `Basic ${btoa('admin:admin')}`, // Remplacez par vos credentials
+            },
+          }
+        );
+
+        console.log("Traccar response:", traccarResponse.data);
+        toast.success("Groupe ajouté avec succès dans Traccar et la base de données !");
+      } catch (traccarError) {
+        console.error("Erreur Traccar:", traccarError.response?.data);
+        toast.warning("Groupe ajouté dans la base de données mais erreur lors de l'ajout dans Traccar");
       }
-
-      setFormData({ nom: "" });
-      setMessage("Groupe ajouté avec succès !");
-      setMessageType("success");
-
-      setTimeout(() => navigate("/TableGroups"), 2000);
-    } catch (error) {
-      setMessage(error.message);
-      setMessageType("error");
-    } finally {
-      setLoading(false);
     }
-  };
+
+    setFormData({ nom: "", admin: "" });
+    setTimeout(() => navigate("/TableGroups"), 2000);
+  } catch (error) {
+    const errorMessage =
+      error.response?.status === 400 && error.response.data.message.includes("existe déjà")
+        ? "Un groupe avec ce nom existe déjà"
+        : error.response?.status === 400 && error.response.data.message.includes("admin")
+        ? "Cet admin est déjà assigné à un autre groupe"
+        : error.response?.data?.message || "Erreur lors de l'ajout du groupe";
+    toast.error(errorMessage);
+    console.error("Erreur détaillée:", error.response?.data);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="dashboard-admin">
@@ -100,15 +129,6 @@ const AddGroup = () => {
               <h2>Ajouter un nouveau groupe</h2>
               <div className="group-decoration"></div>
             </div>
-
-            {message && (
-              <div className={`group-message ${messageType}`}>
-                <div className="message-icon">
-                  {messageType === "success" ? "✓" : "⚠"}
-                </div>
-                <p>{message}</p>
-              </div>
-            )}
 
             <form onSubmit={handleSubmit}>
               <div className="group-form-section">
@@ -126,6 +146,24 @@ const AddGroup = () => {
                     onChange={handleChange}
                     required
                   />
+                </div>
+                <div className="group-input-group">
+                  <label htmlFor="admin">
+                    <span className="input-icon">👤</span> Propriétaire (Admin)
+                  </label>
+                  <select
+                    id="admin"
+                    name="admin"
+                    value={formData.admin}
+                    onChange={handleChange}
+                  >
+                    <option value="">Aucun admin</option>
+                    {admins.map((admin) => (
+                      <option key={admin._id} value={admin._id}>
+                        {admin.nom} {admin.prenom}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -149,6 +187,18 @@ const AddGroup = () => {
           </div>
         </div>
       </div>
+
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
     </div>
   );
 };

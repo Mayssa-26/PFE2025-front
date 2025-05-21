@@ -1568,3 +1568,17 @@ body {
   right: 30px;
   
 }
+.duration-select {
+  padding: 8px;
+  font-size: 16px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  margin-left: 10px;
+  background-color: #fff;
+  cursor: pointer;
+}
+.duration-select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+}

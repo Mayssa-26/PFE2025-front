@@ -5,12 +5,10 @@ import axios from 'axios';
 import jwt_decode from 'jwt-decode';
 import NavbarSuperAdmin from './NavBarSupAdmin';
 import SidebarSupAdmin from './SideBarSupAdmin';
-import { Link, useNavigate } from 'react-router-dom'; // Importer useNavigate
-//import { FiEdit, FiTrash2 } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
 import '../dashboardAdmin/SideBar.css';
 import '../dashboardAdmin/NavBar.css';
 import './tableVeh.css';
-
 
 const VehiculesSansCapteurSA = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -23,11 +21,11 @@ const VehiculesSansCapteurSA = () => {
   const [error, setError] = useState(null);
   const [adminId, setAdminId] = useState(null);
   const [adminGroup, setAdminGroup] = useState(null);
-  const [showDeletePopup, setShowDeletePopup] = useState(false); // État pour le popup
-  const [vehicleToDelete, setVehicleToDelete] = useState(null); // Véhicule à supprimer
+  const [showDeletePopup, setShowDeletePopup] = useState(false);
+  const [vehicleToDelete, setVehicleToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const vehiculesPerPage = 5;
-  
-  // Récupérer l'ID et le groupe de l'admin connecté
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -37,7 +35,6 @@ const VehiculesSansCapteurSA = () => {
     }
   }, []);
 
-  // Fonction de normalisation pour la comparaison
   const normalizeString = (str) => str?.toLowerCase().replace(/\s|-/g, '');
 
   const checkAndRemoveTraccarVehicles = async (vehiclesList) => {
@@ -49,7 +46,6 @@ const VehiculesSansCapteurSA = () => {
           Accept: "application/json",
         },
       });
-  
       const traccarVehicleNames = traccarResponse.data.map(v => normalizeString(v.name));
       return vehiclesList.filter(v => !traccarVehicleNames.includes(normalizeString(v.immatriculation)));
     } catch (error) {
@@ -60,7 +56,6 @@ const VehiculesSansCapteurSA = () => {
 
   const fetchVehicules = async () => {
     if (!adminId) return;
-    
     setLoading(true);
     setError(null);
     try {
@@ -71,7 +66,6 @@ const VehiculesSansCapteurSA = () => {
           search: searchTerm
         }
       });
-
       if (Array.isArray(res.data)) {
         const filteredVehicles = await checkAndRemoveTraccarVehicles(res.data);
         setVehicules(filteredVehicles);
@@ -100,18 +94,21 @@ const VehiculesSansCapteurSA = () => {
     setCurrentPage(1);
   }, [searchTerm, filteredMarque]);
 
-  // Fonction pour supprimer un véhicule
   const handleDelete = async () => {
+    setIsDeleting(true);
     try {
-      await axios.delete(`/api/vehicules/${vehicleToDelete._id}`);
+      await axios.delete(`/api/vehicules/delete/${vehicleToDelete._id}`);
       setVehicules(vehicules.filter(v => v._id !== vehicleToDelete._id));
       setShowDeletePopup(false);
       setVehicleToDelete(null);
       setError(null);
+      await fetchVehicules();
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
-      setError('Impossible de supprimer le véhicule');
+      setError(error.response?.data?.message || 'Impossible de supprimer le véhicule');
       setShowDeletePopup(false);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -140,7 +137,6 @@ const VehiculesSansCapteurSA = () => {
         {isSidebarOpen ? "✕" : "☰"}
       </button>
       <SidebarSupAdmin isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
-      
       <div className="main-content">
         <NavbarSuperAdmin />
         <div className="container2">
@@ -168,10 +164,9 @@ const VehiculesSansCapteurSA = () => {
             </select>
           </div>
 
-          {/* Bouton Ajouter */}
           <div className="add-vehicle-btn">
             <Link to="/AjouterVehicule" className="link">
-             <button className="btn-add">Ajouter un véhicule</button>
+              <button className="btn-add">Ajouter un véhicule</button>
             </Link>
           </div>
 
@@ -210,12 +205,11 @@ const VehiculesSansCapteurSA = () => {
                       <td>
                         <div className="action-buttons">
                           <Link
-                          className="action-icon delete"
+                            className="action-icon"
                             to="/AjouterVehicule"
-                            state={{ vehicle: v }} // Passer les données du véhicule
-                            
+                            state={{ vehicle: v }}
                           >
-                           ✏️
+                            ✏️
                           </Link>
                           <button
                             className="action-icon delete"
@@ -223,8 +217,9 @@ const VehiculesSansCapteurSA = () => {
                               setVehicleToDelete(v);
                               setShowDeletePopup(true);
                             }}
+                            disabled={isDeleting}
                           >
-                           🗑️
+                            🗑️
                           </button>
                         </div>
                       </td>
@@ -241,7 +236,6 @@ const VehiculesSansCapteurSA = () => {
             </table>
           )}
 
-          {/* Popup de confirmation de suppression */}
           {showDeletePopup && (
             <div className="popup-overlay">
               <div className="popup-content">
@@ -254,12 +248,14 @@ const VehiculesSansCapteurSA = () => {
                   <button
                     className="popup-btn confirm"
                     onClick={handleDelete}
+                    disabled={isDeleting}
                   >
-                    Confirmer
+                    {isDeleting ? 'Suppression...' : 'Confirmer'}
                   </button>
                   <button
                     className="popup-btn cancel"
                     onClick={() => setShowDeletePopup(false)}
+                    disabled={isDeleting}
                   >
                     ❌ Annuler
                   </button>
