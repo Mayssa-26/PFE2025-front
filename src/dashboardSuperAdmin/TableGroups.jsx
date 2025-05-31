@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { FiSearch, FiAlertCircle, FiX } from "react-icons/fi";
 import { ToastContainer, toast } from "react-toastify";
 import axios from "axios";
@@ -10,6 +10,7 @@ import NavbarSuperAdmin from "./NavBarSupAdmin";
 import { Link } from "react-router-dom";
 
 const API_BASE_URL = "http://localhost:8000/api";
+const TRACCAR_API_URL = "https://yepyou.treetronix.com/api";
 
 export default function GroupeTable() {
   const location = useLocation();
@@ -28,8 +29,8 @@ export default function GroupeTable() {
     nombreTotalVehicules: 0,
   });
   const [showEditForm, setShowEditForm] = useState(false);
-  const [showDeletePopup, setShowDeletePopup] = useState(false);
-  const [groupeToDelete, setGroupeToDelete] = useState(null);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [groupeToArchive, setGroupeToArchive] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [admins, setAdmins] = useState([]);
   const groupesPerPage = viewAll ? 5 : 5;
@@ -40,12 +41,14 @@ export default function GroupeTable() {
     fetchAdmins();
   }, []);
 
-  const fetchGroupesWithStats = async () => {
+  const fetchGroupesWithStats = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/groupes/getGroupesWithVehiculesStats`);
-      
-      const formattedGroupes = response.data.data.map(groupe => ({
+      const response = await axios.get(`${API_BASE_URL}/groupes/getGroupesWithVehiculesStats`, {
+        params: { archived: false }, // Exclude archived groups
+      });
+
+      const formattedGroupes = response.data.data.map((groupe) => ({
         _id: groupe._id,
         nom: groupe.nomGroupe,
         admin: groupe.admin || "",
@@ -70,7 +73,7 @@ export default function GroupeTable() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const fetchAdmins = async () => {
     try {
@@ -83,7 +86,8 @@ export default function GroupeTable() {
   };
 
   const filteredGroupes = groupes.filter((groupe) =>
-    groupe.nom?.toLowerCase().includes(searchQuery.toLowerCase())
+    groupe.nom?.toLowerCase().includes(searchQuery.toLowerCase()) &&
+    !groupe.attributes?.archived
   );
 
   const totalPages = Math.ceil(filteredGroupes.length / groupesPerPage);
@@ -123,7 +127,7 @@ export default function GroupeTable() {
       setIsLoading(true);
       const response = await axios.put(`${API_BASE_URL}/groupes/${selectedGroupe._id}`, {
         nom: selectedGroupe.nom,
-        admin: selectedGroupe.admin,
+        admin: selectedGroupe.admin || null,
       });
       toast.success("Groupe mis à jour avec succès!");
       setShowEditForm(false);
@@ -137,25 +141,74 @@ export default function GroupeTable() {
     }
   };
 
-  const handleSupprimer = async () => {
+  const handleArchive = async () => {
+    if (!groupeToArchive) return;
+
+    setIsLoading(true);
+
+    // Optimistically remove the group from the UI
+    const groupeIdToArchive = groupeToArchive._id;
+    const previousGroupes = [...groupes]; // Store previous state for rollback
+    setGroupes((prevGroupes) => prevGroupes.filter((g) => g._id !== groupeIdToArchive));
+
     try {
-      setIsLoading(true);
-      const response = await axios.delete(`${API_BASE_URL}/groupes/${groupeToDelete._id}`);
-      toast.success(response.data.message || "Groupe supprimé avec succès!");
-      fetchGroupesWithStats();
-      setShowDeletePopup(false);
-      setGroupeToDelete(null);
+      // Fetch all Traccar groups to find the one with matching name
+      const traccarGroupsResponse = await axios.get(`${TRACCAR_API_URL}/groups`, {
+        headers: {
+          Authorization: "Basic " + btoa("admin:admin"), // Replace with your Traccar credentials
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+
+      const traccarGroup = traccarGroupsResponse.data.find(
+        (group) => group.name === groupeToArchive.nom
+      );
+
+      if (!traccarGroup) {
+        throw new Error("Groupe non trouvé dans Traccar");
+      }
+
+      // Update group in Traccar to set archived: true
+      await axios.put(
+        `${TRACCAR_API_URL}/groups/${traccarGroup.id}`,
+        {
+          id: traccarGroup.id,
+          name: traccarGroup.name,
+          attributes: {
+            ...traccarGroup.attributes,
+            archived: true,
+          },
+        },
+        {
+          headers: {
+            Authorization: "Basic " + btoa("admin:admin"), // Replace with your Traccar credentials
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Update group in MongoDB to set archived: true
+      await axios.put(`${API_BASE_URL}/groupes/${groupeToArchive._id}/archive`, {
+        archived: true,
+      });
+
+      toast.success(`Groupe "${groupeToArchive.nom}" archivé avec succès.`);
     } catch (error) {
+      // Revert optimistic update on error
+      setGroupes(previousGroupes);
       const errorMessage =
         error.response?.status === 404
           ? "Groupe non trouvé"
           : error.response?.status === 400
           ? error.response.data.message
-          : error.response?.data?.message || "Une erreur est survenue lors de la suppression";
+          : error.response?.data?.message || error.message || "Une erreur est survenue lors de l'archivage";
       toast.error(`Erreur: ${errorMessage}`);
-      console.error("Erreur détaillée:", error.response?.data);
+      console.error("Erreur détaillée:", error.response?.data || error);
     } finally {
       setIsLoading(false);
+      setShowArchiveModal(false);
+      setGroupeToArchive(null);
     }
   };
 
@@ -166,6 +219,18 @@ export default function GroupeTable() {
 
   return (
     <div className="dashboard-admin">
+      <style>
+        {`
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+        `}
+      </style>
       <button className="toggle-btn" onClick={toggleSidebar}>
         {isSidebarOpen ? "✕" : "☰"}
       </button>
@@ -193,7 +258,6 @@ export default function GroupeTable() {
             </div>
           </div>
 
-          {/* Nouveau Modal Popup pour l'édition */}
           {showEditForm && (
             <div className="edit-popup-overlay">
               <div className="edit-popup-container">
@@ -239,9 +303,9 @@ export default function GroupeTable() {
                     >
                       Annuler
                     </button>
-                    <button 
-                      type="submit" 
-                      className="btn btn-primary" 
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
                       disabled={isLoading}
                     >
                       {isLoading ? (
@@ -297,12 +361,12 @@ export default function GroupeTable() {
                           ✏️
                         </button>
                         <button
-                          className="action-icon delete"
+                          className="action-icon archive"
                           onClick={() => {
-                            setGroupeToDelete(groupe);
-                            setShowDeletePopup(true);
+                            setGroupeToArchive(groupe);
+                            setShowArchiveModal(true);
                           }}
-                          aria-label="Supprimer"
+                          aria-label="Archiver"
                         >
                           🗑️
                         </button>
@@ -342,27 +406,109 @@ export default function GroupeTable() {
             </div>
           )}
 
-          {showDeletePopup && (
-            <div className="popup-overlay">
-              <div className="popup-content">
-                <h3>Confirmer la suppression</h3>
-                <p>
-                  Êtes-vous sûr de vouloir supprimer le groupe{" "}
-                  <strong>{groupeToDelete?.nom}</strong> ?
+          {showArchiveModal && groupeToArchive && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0,0,0,0.5)',
+                zIndex: 1000,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                animation: 'fadeIn 0.2s ease-out',
+              }}
+              className="modal-overlay active"
+            >
+              <div
+                style={{
+                  background: 'white',
+                  padding: '25px',
+                  borderRadius: '10px',
+                  maxWidth: '400px',
+                  width: '90%',
+                  textAlign: 'center',
+                  boxShadow: '0 5px 15px rgba(0, 0, 0, 0.2)',
+                  animation: 'slideIn 0.3s ease-out',
+                }}
+                className="modal-content"
+              >
+                <h3
+                  style={{
+                    fontSize: '22px',
+                    fontWeight: 600,
+                    color: '#2c3e50',
+                    marginBottom: '15px',
+                  }}
+                  className="confirmation-modal"
+                >
+                  ⚠️ Confirmer l'archivage
+                </h3>
+                <p
+                  style={{
+                    color: '#555',
+                    fontSize: '16px',
+                    marginBottom: '25px',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Êtes-vous sûr de vouloir archiver le groupe{' '}
+                  <strong>{groupeToArchive.nom}</strong> ?
                 </p>
-                <div className="popup-actions">
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: '15px',
+                  }}
+                  className="form-actions"
+                >
                   <button
-                    className="popup-btn cancel"
-                    onClick={() => setShowDeletePopup(false)}
-                  >
-                    ❌ Annuler
-                  </button>
-                  <button
-                    className="popup-btn confirm"
-                    onClick={handleSupprimer}
+                    onClick={handleArchive}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#e74c3c',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      fontSize: '15px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#c0392b')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#e74c3c')}
+                    className="group-btn danger"
                     disabled={isLoading}
                   >
-                    {isLoading ? <div className="spinner-btn"></div> : "Confirmer"}
+                    {isLoading ? 'Archivage...' : 'Confirmer'}
+                  </button>
+                  <button
+                    onClick={() => setShowArchiveModal(false)}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#f1f1f1',
+                      color: '#333',
+                      border: 'none',
+                      borderRadius: '5px',
+                      fontSize: '15px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#ddd')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f1f1')}
+                    className="group-btn secondary"
+                    disabled={isLoading}
+                  >
+                    <i style={{ fontStyle: 'normal', fontSize: '14px' }}>❌</i>
+                    Annuler
                   </button>
                 </div>
               </div>

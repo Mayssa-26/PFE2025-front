@@ -4,9 +4,8 @@ import { FaArrowRight } from 'react-icons/fa';
 import { useEffect, useRef, useState } from "react";
 import NavbarSuperAdmin from "./NavBarSupAdmin";
 import SidebarSupAdmin from "./SideBarSupAdmin";
-import "./dashSuperAdmin.css";
-import "../dashboardAdmin/SideBar.css";
-import "../dashboardAdmin/NavBar.css";
+
+
 import axios from "axios";
 import { ShoppingBag, BarChart2, PieChart, TrendingUp } from "lucide-react";
 import { FaSearch } from "react-icons/fa";
@@ -164,6 +163,394 @@ const DashSuperAdmin = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
   return (
+    <>
+      <style>{`
+        :root {
+          --primary-color: #1e1d54;
+          --secondary-color: #426e91;
+          --success-color: #22c55e;
+          --error-color: #ef4444;
+          --warning-color: #f59e0b;
+          --info-color: #3b82f6;
+          --background-color: #f5f7fa;
+          --card-background: #ffffff;
+          --text-primary: #1f2937;
+          --text-secondary: #6b7280;
+        }
+
+        .dashboard-admin {
+          display: flex;
+          font-family: 'Roboto', sans-serif;
+          min-height: 100vh;
+          background-color: var(--background-color);
+        }
+
+        .main-content {
+          flex: 1;
+          margin-left: 250px;
+          padding: 2rem;
+          transition: margin-left 0.3s ease;
+        }
+
+        .dashboard {
+          max-width: 1500px;
+          margin: 0 auto;
+          padding: 2rem;
+        }
+
+        .stats-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 1.5rem;
+          margin-bottom: 2rem;
+        }
+
+        .stat-card {
+          background: var(--card-background);
+          border-radius: 12px;
+          padding: 1.5rem;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          transition: transform 0.2s ease;
+        }
+
+        .stat-card:hover {
+          transform: translateY(-4px);
+        }
+
+        .stat-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1rem;
+        }
+
+        .stat-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+        }
+
+        .stat-icon.green { background-color: var(--success-color); }
+        .stat-icon.red { background-color: var(--error-color); }
+        .stat-icon.yellow { background-color: var(--warning-color); }
+        .stat-icon.blue { background-color: var(--info-color); }
+
+        .stat-badge {
+          padding: 0.25rem 0.75rem;
+          border-radius: 1rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: white;
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .stat-badge.green { background-color: var(--success-color); }
+        .stat-badge.red { background-color: var(--error-color); }
+        .stat-badge.yellow { background-color: var(--warning-color); }
+        .stat-badge.blue { background-color: var(--info-color); }
+
+        .stat-content {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .stat-value {
+          font-size: 1.75remontant
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0;
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .stat-label {
+          font-size: 0.875rem;
+          color: var(--text-secondary);
+          margin: 0.25rem 0 0;
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .chart-card {
+          background: var(--card-background);
+          border-radius: 12px;
+          padding: 1.5rem;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          margin-top: 2rem;
+        }
+
+        .donut-and-stats {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1.5rem;
+          flex-wrap: wrap;
+        }
+
+        .donut-wrapper {
+          flex: 1;
+          max-width: 300px;
+          position: relative;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .donut-chart {
+          width: 100%;
+          max-width: 250px;
+          height: 250px;
+        }
+
+        .donut-center {
+          position: absolute;
+          text-align: center;
+        }
+
+        .donut-label {
+          font-size: 0.875rem;
+          color: var(--text-secondary);
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .donut-value {
+          font-size: 1.75rem;
+          font-weight: 700;
+          color: var(--text-primary);
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .additional-stats {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .stat-item .stat-label {
+          font-size: 0.875rem;
+          color: var(--text-secondary);
+          margin-bottom: 0.25rem;
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .stat-item .stat-value {
+          font-size: 1.5rem;
+          font-weight: 600;
+          color: var(--text-primary);
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .search-container {
+          position: relative;
+          margin: 1.5rem 0;
+          max-width: 400px;
+        }
+
+        .search-icon {
+          position: absolute;
+          left: 1rem;
+          top: 50%;
+          transform: translateY(-50%);
+          color: var(--text-secondary);
+        }
+
+        .search-input {
+          width: 100%;
+          padding: 0.75rem 1rem 0.75rem 2.5rem;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          transition: border-color 0.2s ease;
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .search-input:focus {
+          outline: none;
+          border-color: var(--primary-color);
+          box-shadow: 0 0 0 3px rgba(30, 29, 84, 0.1);
+        }
+
+        .vehicles-table {
+          width: 100%;
+          border-collapse: collapse;
+          background: var(--card-background);
+          border-radius: 12px;
+          overflow: hidden;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          margin-top: 1.5rem;
+        }
+
+        .vehicles-table thead {
+          background: linear-gradient(90deg, #6b7280, #4b5563);
+          color: white;
+        }
+
+        .vehicles-table th {
+          padding: 1rem;
+          text-align: left;
+          font-size: 0.875rem;
+          text-transform: uppercase;
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .vehicles-table tbody tr {
+          transition: background 0.2s ease;
+        }
+
+        .vehicles-table tbody tr:hover {
+          background-color: #f3f4f6;
+        }
+
+        .vehicles-table td {
+          padding: 1rem;
+          border-bottom: 1px solid #e5e7eb;
+          font-size: 0.875rem;
+          color: var(--text-primary);
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .status-badge {
+          padding: 0.25rem 0.75rem;
+          border-radius: 1rem;
+          font-size: 0.75rem;
+          font-weight: 500;
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .online-oval {
+          background-color: rgba(34, 197, 94, 0.1);
+          color: var(--success-color);
+        }
+
+        .offline-oval {
+          background-color: rgba(239, 68, 68, 0.1);
+          color: var(--error-color);
+        }
+
+        .see-more-btn {
+          background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+          color: white;
+          padding: 0.75rem 1.5rem;
+          border: none;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          transition: all 0.2s ease;
+          margin-top: 1rem;
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .see-more-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .toggle-btn {
+          display: none;
+          position: fixed;
+          top: 1rem;
+          left: 1rem;
+          z-index: 1100;
+          background: var(--primary-color);
+          color: white;
+          border: none;
+          padding: 0.75rem;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 1rem;
+          font-family: 'Roboto', sans-serif;
+        }
+
+        .alert.error {
+          background-color: rgba(239, 68, 68, 0.1);
+          color: var(--error-color);
+          padding: 1rem;
+          border-radius: 8px;
+          margin-bottom: 1.5rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .loading {
+          text-align: center;
+          color: var(--text-secondary);
+          padding: 2rem;
+        }
+
+        .no-results {
+          text-align: center;
+          color: var(--text-secondary);
+          padding: 2rem;
+          background: var(--card-background);
+          border-radius: 8px;
+        }
+
+        @media (max-width: 1024px) {
+          .main-content {
+            margin-left: 0;
+          }
+
+          .stats-cards {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          }
+
+          .donut-and-stats {
+            flex-direction: column;
+            align-items: center;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .dashboard {
+            padding: 1rem;
+          }
+
+          .stats-cards {
+            grid-template-columns: 1fr;
+          }
+
+          .search-container {
+            max-width: 100%;
+          }
+
+          .toggle-btn {
+            display: block;
+          }
+
+          .sidebar {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+          }
+
+          .sidebar.open {
+            transform: translateX(0);
+          }
+        }
+
+        @media (max-width: 640px) {
+          .dashboard {
+            padding: 0.5rem;
+          }
+
+          .stat-value {
+            font-size: 1.5rem;
+            font-family: 'Roboto', sans-serif;
+          }
+
+          .stat-label {
+            font-size: 0.75rem;
+            font-family: 'Roboto', sans-serif;
+          }
+        }
+      `}</style>
     <div className="dashboard-admin">
       <button className="toggle-btn" onClick={toggleSidebar}>
   {isSidebarOpen ? "✕" : "☰"}
@@ -340,6 +727,7 @@ const DashSuperAdmin = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 

@@ -47,7 +47,6 @@ body::before {
   left: 0;
   width: 100%;
   height: 250px;
-  background: var(--gradient-primary);
   z-index: -1;
   transform: skewY(-3deg) translateY(-50%);
 }

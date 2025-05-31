@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useLocation } from "react-router-dom";
+import axios from "axios";
 import {
   LineChart,
   Line,
@@ -987,175 +988,199 @@ const StaticRouteMap = () => {
     return `${hours}h ${mins}min`;
   };
 
-  const saveActivityReportAsPDF = async () => {
-    try {
-      // Créer un élément temporaire pour le PDF
-      const pdfContent = document.createElement("div");
-      pdfContent.style.width = "210mm";
-      pdfContent.style.padding = "20px";
-      pdfContent.style.backgroundColor = "white";
+ const saveActivityReportAsPDF = async () => {
+  try {
+    // Créer un élément temporaire pour le PDF
+    const summary = generateAnalyticalSummary();
+    const fileName = `rapport_${summary.vehicle.name}_${Date.now()}.pdf`;
+    const pdfContent = document.createElement("div");
+    pdfContent.style.width = "210mm";
+    pdfContent.style.padding = "20px";
+    pdfContent.style.backgroundColor = "white";
+
+    // Ajouter le contenu formaté
+    pdfContent.innerHTML = `
+      <style>
+        .pdf-header {
+          text-align: center;
+          margin-bottom: 20px;
+          border-bottom: 2px solid #007bff;
+          padding-bottom: 10px;
+        }
+        .pdf-title {
+          color: darkblue;
+          font-size: 24px;
+          margin: 0;
+        }
+        .pdf-section {
+          margin-bottom: 15px;
+          padding: 10px;
+          background-color: #f8f9fa;
+          border-radius: 5px;
+        }
+        .pdf-section h3 {
+          color: #007bff;
+          margin-top: 0;
+          border-bottom: 1px solid #dee2e6;
+          padding-bottom: 5px;
+        }
+        .pdf-row {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 5px;
+        }
+        .pdf-label {
+          font-weight: bold;
+          width: 50%;
+        }
+        .pdf-value {
+          width: 50%;
+        }
+        .pdf-list {
+          margin-top: 5px;
+          padding-left: 20px;
+        }
+        .company-logo {
+          text-align: center;
+          margin-bottom: 10px;
+        }
+      </style>
       
-      // Ajouter le contenu formaté
-      const summary = generateAnalyticalSummary();
-      
-      pdfContent.innerHTML = `
-        <style>
-          .pdf-header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 10px;
-          }
-          .pdf-title {
-            color: darkblue;
-            font-size: 24px;
-            margin: 0;
-          }
-          .pdf-section {
-            margin-bottom: 15px;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-          }
-          .pdf-section h3 {
-            color: #007bff;
-            margin-top: 0;
-            border-bottom: 1px solid #dee2e6;
-            padding-bottom: 5px;
-          }
-          .pdf-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-          }
-          .pdf-label {
-            font-weight: bold;
-            width: 50%;
-          }
-          .pdf-value {
-            width: 50%;
-          }
-          .pdf-list {
-            margin-top: 5px;
-            padding-left: 20px;
-          }
-          .company-logo {
-            text-align: center;
-            margin-bottom: 10px;
-          }
-        </style>
-        
-        <div class="pdf-header">
-          <h1 class="pdf-title">Rapport de Trajet - ${summary.vehicle.name}</h1>
-          <p> Date: ${formatDate(new Date())}</p>
+      <div class="pdf-header">
+        <h1 class="pdf-title">Rapport de Trajet - ${summary.vehicle.name}</h1>
+        <p> Date: ${formatDate(new Date())}</p>
+      </div>
+
+      <div class="pdf-section">
+        <h3>Informations du Véhicule</h3>
+        <div class="pdf-row">
+          <span class="pdf-label">Nom :</span>
+          <span class="pdf-value">${summary.vehicle.name}</span>
         </div>
-  
-        <div class="pdf-section">
-          <h3>Informations du Véhicule</h3>
-          <div class="pdf-row">
-            <span class="pdf-label">Nom :</span>
-            <span class="pdf-value">${summary.vehicle.name}</span>
-          </div>
+      </div>
+
+      <div class="pdf-section">
+        <h3>Période Analysée</h3>
+        <div class="pdf-row">
+          <span class="pdf-label">Début :</span>
+          <span class="pdf-value">${summary.period.start}</span>
         </div>
-  
-        <div class="pdf-section">
-          <h3>Période Analysée</h3>
-          <div class="pdf-row">
-            <span class="pdf-label">Début :</span>
-            <span class="pdf-value">${summary.period.start}</span>
-          </div>
-          <div class="pdf-row">
-            <span class="pdf-label">Fin :</span>
-            <span class="pdf-value">${summary.period.end}</span>
-          </div>
+        <div class="pdf-row">
+          <span class="pdf-label">Fin :</span>
+          <span class="pdf-value">${summary.period.end}</span>
         </div>
-  
-        <div class="pdf-section">
-          <h3>Trajet Effectué</h3>
-          <div class="pdf-row">
-            <span class="pdf-label">Distance :</span>
-            <span class="pdf-value">${summary.realRoute.distance}</span>
-          </div>
-          <div class="pdf-row">
-            <span class="pdf-label">Durée :</span>
-            <span class="pdf-value">${summary.realRoute.duration}</span>
-          </div>
-          <div class="pdf-row">
-            <span class="pdf-label">Vitesse Moyenne :</span>
-            <span class="pdf-value">${summary.realRoute.averageSpeed}</span>
-          </div>
-          <div class="pdf-row">
-            <span class="pdf-label">Vitesse Maximale :</span>
-            <span class="pdf-value">${summary.realRoute.maxSpeed}</span>
-          </div>
+      </div>
+
+      <div class="pdf-section">
+        <h3>Trajet Effectué</h3>
+        <div class="pdf-row">
+          <span class="pdf-label">Distance :</span>
+          <span class="pdf-value">${summary.realRoute.distance}</span>
         </div>
-  
-        ${summary.longestStop ? `
-        <div class="pdf-section">
-          <h3>Arrêt Prolongé</h3>
-          <div class="pdf-row">
-            <span class="pdf-label">Adresse :</span>
-            <span class="pdf-value">${summary.longestStop.address}</span>
-          </div>
-          <div class="pdf-row">
-            <span class="pdf-label">Durée :</span>
-            <span class="pdf-value">${summary.longestStop.duration}</span>
-          </div>
-          <div class="pdf-row">
-            <span class="pdf-label">Coordonnées :</span>
-            <span class="pdf-value">${summary.longestStop.coordinates}</span>
-          </div>
+        <div class="pdf-row">
+          <span class="pdf-label">Durée :</span>
+          <span class="pdf-value">${summary.realRoute.duration}</span>
         </div>
-        ` : ''}
-  
-        <div class="pdf-section">
-          <h3>Activité</h3>
-          <div class="pdf-row">
-            <span class="pdf-label">Temps en mouvement :</span>
-            <span class="pdf-value">${summary.activitySummary.movingTime}</span>
-          </div>
-          <div class="pdf-row">
-            <span class="pdf-label">Temps à l'arrêt :</span>
-            <span class="pdf-value">${summary.activitySummary.stoppedTime}</span>
-          </div>
+        <div class="pdf-row">
+          <span class="pdf-label">Vitesse Moyenne :</span>
+          <span class="pdf-value">${summary.realRoute.averageSpeed}</span>
         </div>
-  
-        <div class="pdf-section">
-          <h3>Distribution du temps</h3>
-          <ul class="pdf-list">
-            ${summary.activitySummary.timeDistribution.map(period => `
-              <li>${period.period} : ${period.minutes} minutes</li>
-            `).join('')}
-          </ul>
+        <div class="pdf-row">
+          <span class="pdf-label">Vitesse Maximale :</span>
+          <span class="pdf-value">${summary.realRoute.maxSpeed}</span>
         </div>
-      `;
+      </div>
+
+      ${summary.longestStop ? `
+      <div class="pdf-section">
+        <h3>Arrêt Prolongé</h3>
+        <div class="pdf-row">
+          <span class="pdf-label">Adresse :</span>
+          <span class="pdf-value">${summary.longestStop.address}</span>
+        </div>
+        <div class="pdf-row">
+          <span class="pdf-label">Durée :</span>
+          <span class="pdf-value">${summary.longestStop.duration}</span>
+        </div>
+        <div class="pdf-row">
+          <span class="pdf-label">Coordonnées :</span>
+          <span class="pdf-value">${summary.longestStop.coordinates}</span>
+        </div>
+      </div>
+      ` : ''}
+
+      <div class="pdf-section">
+        <h3>Activité</h3>
+        <div class="pdf-row">
+          <span class="pdf-label">Temps en mouvement :</span>
+          <span class="pdf-value">${summary.activitySummary.movingTime}</span>
+        </div>
+        <div class="pdf-row">
+          <span class="pdf-label">Temps à l'arrêt :</span>
+          <span class="pdf-value">${summary.activitySummary.stoppedTime}</span>
+        </div>
+      </div>
+
+      <div class="pdf-section">
+        <h3>Distribution du temps</h3>
+        <ul class="pdf-list">
+          ${summary.activitySummary.timeDistribution.map(period => `
+            <li>${period.period} : ${period.minutes} minutes</li>
+          `).join('')}
+        </ul>
+      </div>
+    `;
+
+    // Ajouter au DOM temporairement
+    document.body.appendChild(pdfContent);
+
+    // Générer le PDF
+    const canvas = await html2canvas(pdfContent, {
+      scale: 2,
+      logging: false,
+      useCORS: true,
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+
+    // Convertir le PDF en blob
+    const pdfBlob = pdf.output('blob');
+
+    // Préparer les données pour MongoDB
+    const formData = new FormData();
+    formData.append('report', pdfBlob, fileName);
+    formData.append('vehicleName', summary.vehicle.name);
+    formData.append('driverName', location.state?.driverName || 'Inconnu'); // Assurez-vous que driverName est disponible
+    formData.append('periodStart', summary.period.start);
+    formData.append('periodEnd', summary.period.end);
+    formData.append('createdAt', new Date().toISOString());
+
+    // Envoyer au backend pour stockage dans MongoDB
+    await axios.post('/api/reports', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    // Télécharger le PDF
+    pdf.save(fileName);
+
+    // Nettoyer
+    document.body.removeChild(pdfContent);
+
+    alert("Rapport généré et enregistré avec succès !");
+  } catch (error) {
+    console.error("Erreur lors de la génération ou de l'enregistrement du PDF:", error);
+    alert("Erreur lors de la génération ou de l'enregistrement du PDF.");
+  }
+};
   
-      // Ajouter au DOM temporairement
-      document.body.appendChild(pdfContent);
-  
-      // Générer le PDF
-      const canvas = await html2canvas(pdfContent, {
-        scale: 2,
-        logging: false,
-        useCORS: true,
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-  
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`rapport_trajet_${summary.vehicle.name}_${formatDate(new Date())}.pdf`);
-  
-      // Nettoyer
-      document.body.removeChild(pdfContent);
-    } catch (error) {
-      console.error("Erreur lors de la génération du PDF:", error);
-      alert("Erreur lors de la génération du PDF.");
-    }
-  };
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 
   return (

@@ -2,9 +2,9 @@
 
 /* Variables pour une cohérence visuelle */
 :root {
-    --primary-color: #4361ee;
-    --primary-light: #4895ef;
-    --primary-gradient: linear-gradient(135deg, #4361ee, #4895ef);
+    --primary-color: #0f1738;
+    --primary-light: #14275c;
+    --primary-gradient: linear-gradient(135deg, #0c1746, #0d2643);
     --secondary-color: #3a0ca3;
     --accent-color: #f72585;
     --success-color: #4cc9f0;
@@ -50,7 +50,7 @@
   
   /* Modal Content - Redesign moderne */
   .modal-content {
-    width: 100%;
+    width: 80%;
     max-width: 600px;
     background: var(--bg-color);
     border-radius: var(--radius-lg);
@@ -71,7 +71,56 @@
       opacity: 1;
     }
   }
-  
+/* Style principal du tableau */
+.vehicles-table {
+  width: 100%;
+  max-width: 1200px;
+  border-collapse: collapse;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  margin: 20px auto;
+}
+
+/* En-tête du tableau */
+.vehicles-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.vehicles-table th {
+  padding: 12px 16px;
+  color: rgb(16, 15, 15);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  border: none;
+}
+
+/* Corps du tableau */
+.vehicles-table tbody tr {
+  transition: all 0.3s ease;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.vehicles-table tbody tr:hover {
+  background-color: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.vehicles-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.vehicles-table td {
+  padding: 12px 16px;
+  color: #374151;
+  font-size: 13px;
+  vertical-align: middle;
+}
   /* Formulaire */
   .map-form {
     padding: 28px 32px;

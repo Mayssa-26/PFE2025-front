@@ -32,6 +32,7 @@ import AddDeviceForm from "./dashboardSuperAdmin/AjoutVehiculeTraccar.jsx";
 import PasswordChangeSA from "./dashboardSuperAdmin/modifPasswordSA.jsx";
 import Drivers from "./dashboardAdmin/Drivers.jsx";
 import DriverSA from "./dashboardSuperAdmin/DriversSA.jsx";
+
 function App() {
   return (
     <NotificationProvider>
@@ -77,7 +78,7 @@ function App() {
             <Route path="/modifierPasswordSA" element={<PrivateRoute><PasswordChangeSA/></PrivateRoute>} />
             <Route path="/drivers" element={<Drivers />} />
             <Route path="/driverSA" element={<DriverSA />} />
-          </Routes>
+             </Routes>
         </Router>
       </AuthProvider>
     </ThemeProvider>

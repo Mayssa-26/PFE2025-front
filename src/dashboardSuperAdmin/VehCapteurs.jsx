@@ -5,12 +5,10 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { FaSearch } from "react-icons/fa";
 import PropTypes from 'prop-types';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import SidebarSupAdmin from "./SideBarSupAdmin";
 import NavbarSuperAdmin from "./NavBarSupAdmin";
-import "../dashboardAdmin/dashAdmin.css";
-import "../dashboardAdmin/SideBar.css";
-import "../dashboardAdmin/NavBar.css";
-import "../dashboardAdmin/Tous.css";
 import "../dashboardAdmin/VehCap.css";
 
 const VehCapSupAdmin = ({ statusFilter, title, description }) => {
@@ -22,13 +20,15 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusSelection, setStatusSelection] = useState("all");
-  const [error, setError] = useState(null);
   const [formError, setFormError] = useState(null);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [vehicleToArchive, setVehicleToArchive] = useState(null);
   const navigate = useNavigate();
   const vehiclesPerPage = 3;
 
   const filteredVehicles = vehicles
     .filter(vehicle =>
+      !vehicle.attributes?.archived &&
       (statusSelection === "all" || vehicle.status === statusSelection) &&
       (!statusFilter || vehicle.status === statusFilter) &&
       (
@@ -45,7 +45,6 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
 
   const fetchVehiclesAndGroups = useCallback(async () => {
     setLoading(prev => ({ ...prev, vehicles: true }));
-    setError(null);
     try {
       const [vehiclesRes, groupsRes] = await Promise.all([
         axios.get("https://yepyou.treetronix.com/api/devices", {
@@ -67,7 +66,7 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
       setGroups(groupsRes.data);
     } catch (err) {
       console.error("Erreur API:", err);
-      setError("Impossible de charger les données. Réessayez plus tard.");
+      toast.error("Impossible de charger les données. Réessayez plus tard.");
     } finally {
       setLoading(prev => ({ ...prev, vehicles: false }));
     }
@@ -77,32 +76,84 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
     fetchVehiclesAndGroups();
   }, [fetchVehiclesAndGroups]);
 
-  const handleDelete = async (deviceId, deviceName) => {
-    if (!window.confirm(`Voulez-vous vraiment supprimer le véhicule "${deviceName}" ?`)) {
-      return;
-    }
+  const handleEditVehicle = (vehicle) => {
+    navigate("/addVehiculeTraccar", {
+      state: {
+        vehicleToEdit: {
+          id: vehicle.id,
+          name: vehicle.name,
+          uniqueId: vehicle.uniqueId,
+          groupId: vehicle.groupId || 0,
+          category: vehicle.category || "default",
+          phone: vehicle.phone || "",
+          model: vehicle.model || "",
+          contact: vehicle.contact || "",
+          status: vehicle.status || "offline",
+          attributes: vehicle.attributes || {}
+        }
+      }
+    });
+  };
+
+  const handleArchive = async () => {
+    if (!vehicleToArchive) return;
 
     setLoading(prev => ({ ...prev, actions: true }));
-    setError(null);
 
     try {
-      await axios.delete(`https://yepyou.treetronix.com/api/devices/${deviceId}`, {
+      const vehicleRes = await axios.get(`https://yepyou.treetronix.com/api/devices/${vehicleToArchive.id}`, {
         headers: {
           Authorization: "Basic " + btoa("admin:admin"),
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
       });
+      const vehicle = vehicleRes.data;
+
+      await axios.put(
+        `https://yepyou.treetronix.com/api/devices/${vehicleToArchive.id}`,
+        {
+          id: vehicleToArchive.id,
+          name: vehicle.name,
+          uniqueId: vehicle.uniqueId,
+          groupId: vehicle.groupId || 0,
+          category: vehicle.category || null,
+          phone: vehicle.phone || null,
+          model: vehicle.model || null,
+          contact: vehicle.contact || null,
+          attributes: {
+            ...vehicle.attributes,
+            archived: true,
+          },
+        },
+        {
+          headers: {
+            Authorization: "Basic " + btoa("admin:admin"),
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
       await fetchVehiclesAndGroups();
-      setError({ type: "success", message: `Véhicule "${deviceName}" supprimé avec succès.` });
+      toast.success(`Véhicule "${vehicleToArchive.name}" archivé avec succès.`);
     } catch (err) {
-      console.error("Erreur lors de la suppression:", err);
-      setError({
-        type: "error",
-        message: `Échec de la suppression: ${err.response?.data?.message || err.message}`,
-      });
+      console.error("Erreur lors de l'archivage:", err);
+      toast.error(`Échec de l'archivage: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(prev => ({ ...prev, actions: false }));
+      setShowArchiveModal(false);
+      setVehicleToArchive(null);
     }
+  };
+
+  const openArchiveModal = (deviceId, deviceName) => {
+    setVehicleToArchive({ id: deviceId, name: deviceName });
+    setShowArchiveModal(true);
+  };
+
+  const closeArchiveModal = () => {
+    setShowArchiveModal(false);
+    setVehicleToArchive(null);
   };
 
   const getGroupName = (groupId) => {
@@ -165,6 +216,18 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
 
   return (
     <div className="dashboard-admin">
+      <style>
+        {`
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+        `}
+      </style>
       <button className="toggle-btn" onClick={toggleSidebar}>
         {isSidebarOpen ? "✕" : "☰"}
       </button>
@@ -210,13 +273,6 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
           </div>
         </div>
 
-        {error && (
-          <div className={`alert ${error.type || "error"}`}>
-            {error.message}
-            <button onClick={() => setError(null)}>×</button>
-          </div>
-        )}
-
         {loading.vehicles ? <div className="loading">Chargement des véhicules...</div> : (
           filteredVehicles.length === 0 ? (
             <div className="no-results">
@@ -248,22 +304,14 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
                       <td>
                         <button
                           className="btn-edit"
-                          onClick={() => navigate(`/addVehiculeTraccar/${vehicle.id}`, { 
-                            state: { 
-                              vehicle: {
-                                ...vehicle,
-                                uniqueId: vehicle.uniqueId,
-                                attributes: vehicle.attributes || {}
-                              } 
-                            } 
-                          })}
+                          onClick={() => handleEditVehicle(vehicle)}
                           disabled={loading.actions}
                         >
                           ✏️
                         </button>
                         <button
                           className="btn-delete"
-                          onClick={() => handleDelete(vehicle.id, vehicle.name)}
+                          onClick={() => openArchiveModal(vehicle.id, vehicle.name)}
                           disabled={loading.actions}
                         >
                           🗑️
@@ -316,6 +364,35 @@ const VehCapSupAdmin = ({ statusFilter, title, description }) => {
           </div>
         </div>
       )}
+
+      {showArchiveModal && vehicleToArchive && (
+        <div className="modal-overlay active">
+          <div className="modal-content">
+            <h3>⚠️ Confirmer l'archivage</h3>
+            <p>Êtes-vous sûr de vouloir archiver le véhicule <strong>{vehicleToArchive.name}</strong> ?</p>
+            <div className="form-actions">
+              <button onClick={handleArchive} className="group-btn danger" disabled={loading.actions}>
+                {loading.actions ? 'Archivage...' : 'Confirmer'}
+              </button>
+              <button onClick={closeArchiveModal} className="group-btn secondary" disabled={loading.actions}>
+                ❌ Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
     </div>
   );
 };

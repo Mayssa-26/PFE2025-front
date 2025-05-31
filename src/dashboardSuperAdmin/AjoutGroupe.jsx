@@ -54,69 +54,79 @@ const AddGroup = () => {
     return true;
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  if (!validateForm()) {
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const payload = {
-      nom: formData.nom,
-      admin: formData.admin || null,
-    };
-    console.log("Payload sent to backend:", payload);
-
-    // 1. Créer le groupe dans votre base de données
-    const response = await axios.post(`${apiUrl}/groupes/createGroupe`, payload);
-    console.log("Backend response:", response.data);
-
-    // 2. Si la création dans votre BD est réussie, créer le groupe dans Traccar
-    if (response.data.success) {
-      try {
-        const traccarPayload = {
-          name: formData.nom,
-          // Ajoutez d'autres champs nécessaires pour Traccar si besoin
-        };
-
-        // Assurez-vous que cette URL correspond à votre endpoint Traccar
-        const traccarResponse = await axios.post(
-          `${apiUrl}/traccar/groups`, // Remplacez par votre endpoint Traccar
-          traccarPayload,
-          {
-            headers: {
-              // Ajoutez les headers nécessaires pour l'authentification Traccar
-              'Authorization': `Basic ${btoa('admin:admin')}`, // Remplacez par vos credentials
-            },
-          }
-        );
-
-        console.log("Traccar response:", traccarResponse.data);
-        toast.success("Groupe ajouté avec succès dans Traccar et la base de données !");
-      } catch (traccarError) {
-        console.error("Erreur Traccar:", traccarError.response?.data);
-        toast.warning("Groupe ajouté dans la base de données mais erreur lors de l'ajout dans Traccar");
-      }
+    if (!validateForm()) {
+      return;
     }
 
-    setFormData({ nom: "", admin: "" });
-    setTimeout(() => navigate("/TableGroups"), 2000);
-  } catch (error) {
-    const errorMessage =
-      error.response?.status === 400 && error.response.data.message.includes("existe déjà")
-        ? "Un groupe avec ce nom existe déjà"
-        : error.response?.status === 400 && error.response.data.message.includes("admin")
-        ? "Cet admin est déjà assigné à un autre groupe"
-        : error.response?.data?.message || "Erreur lors de l'ajout du groupe";
-    toast.error(errorMessage);
-    console.error("Erreur détaillée:", error.response?.data);
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+
+    try {
+      const payload = {
+        nom: formData.nom,
+        admin: formData.admin || null,
+      };
+      console.log("Payload sent to backend:", payload);
+
+      // 1. Create the group in MongoDB
+      const response = await axios.post(`${apiUrl}/groupes/createGroupe`, payload);
+      console.log("Backend response:", response.data);
+
+      // 2. If MongoDB creation is successful, create the group in Traccar
+      if (response.data.data) {
+        try {
+          const traccarPayload = {
+            name: formData.nom,
+            attributes: { archived: false }, // Ensure Traccar group is not archived
+          };
+
+          const traccarResponse = await axios.post(
+            `https://yepyou.treetronix.com/api/groups`,
+            traccarPayload,
+            {
+              headers: {
+                Authorization: `Basic ${btoa('admin:admin')}`, // Replace with your credentials
+              },
+            }
+          );
+
+          console.log("Traccar response:", traccarResponse.data);
+
+          // 3. Update MongoDB with Traccar group ID
+          await axios.put(`${apiUrl}/groupes/${response.data.data._id}`, {
+            nom: formData.nom,
+            admin: formData.admin || null,
+            traccarGroupId: traccarResponse.data.id, // Store Traccar group ID
+          });
+
+          toast.success("Groupe ajouté avec succès dans Traccar et la base de données !");
+        } catch (traccarError) {
+          console.error("Erreur Traccar:", traccarError.response?.data);
+          // Rollback MongoDB creation if Traccar fails
+          await axios.delete(`${apiUrl}/groupes/${response.data.data._id}`);
+          toast.error("Erreur lors de l'ajout du groupe dans Traccar. Création annulée.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      setFormData({ nom: "", admin: "" });
+      setTimeout(() => navigate("/TableGroups"), 2000);
+    } catch (error) {
+      const errorMessage =
+        error.response?.status === 400 && error.response.data.message.includes("existe déjà")
+          ? "Un groupe avec ce nom existe déjà"
+          : error.response?.status === 400 && error.response.data.message.includes("admin")
+          ? "Cet admin est déjà assigné à un autre groupe"
+          : error.response?.data?.message || "Erreur lors de l'ajout du groupe";
+      toast.error(errorMessage);
+      console.error("Erreur détaillée:", error.response?.data);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="dashboard-admin">

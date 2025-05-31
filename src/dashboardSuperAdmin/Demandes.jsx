@@ -1,5 +1,4 @@
 import { useEffect, useState, useContext } from "react";
-import "./dashSuperAdmin.css";
 import "./DemandesTable.css";
 import SidebarSupAdmin from "./SideBarSupAdmin";
 import NavbarSuperAdmin from "./NavBarSupAdmin";

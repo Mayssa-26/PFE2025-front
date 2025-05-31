@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../Authentification/AuthContext.jsx";
-import "./Login.css";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -59,52 +58,218 @@ const Login = () => {
   };
 
   return (
-    <div className="login-conteneur">
-      <div className="login-box">
-        <h2>Connexion</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="login-input-group">
-            <span>📧</span>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              placeholder="Email"
-            />
-          </div>
-          <div className="login-input-group">
-            <span>🔒</span>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              placeholder="Mot de passe"
-            />
-          </div>
-          <button type="submit" className="login-btn">
-            Se connecter
-          </button>
-        </form>
-        {message && <p>{message}</p>}
+    <>
+      <style>{`
+        /* Conteneur principal */
+        .login-conteneur1 {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          width: 90%;
+          max-width: 900px;
+          height: 90vh;
+          background: linear-gradient(135deg, #eee5eb, #cecdec);
+          padding: 40px;
+          border-radius: 10px;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          margin: auto;
+          flex-wrap: wrap;
+          gap: 0px;
+          margin-top: 0px;
+        }
+        
+        .login-box h2 {
+          font-size: 24px;
+          font-weight: 700;
+          margin-bottom: 20px;
+          color: #230f49;
+        }
+        
+        /* Image Box */
+        .login-image-box {
+          flex: 1;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          max-width: 40%;
+        }
+        
+        .login-image-box img {
+          width: 60%;
+          max-width: 250px;
+          filter: drop-shadow(4px 4px 10px rgba(0, 0, 0, 0.2));
+        }
+        
+        /* Boîte de connexion */
+        .login-box {
+          flex: 1;
+          min-width: 300px;
+          max-width: 500px;
+          padding: 25px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+          text-align: center;
+          transition: 0.3s ease-in-out;
+        }
+        
+        .login-box:hover {
+          box-shadow: 0 12px 35px rgba(0, 0, 0, 0.2);
+          transform: translateY(-5px);
+        }
+        
+        /* Champs de saisie */
+        .login-input-group {
+          display: flex;
+          align-items: center;
+          background: #f5f5f5;
+          border-radius: 8px;
+          padding: 10px;
+          margin-bottom: 15px;
+        }
+        
+        .login-input-group input {
+          border: none;
+          background: transparent;
+          width: 100%;
+          padding: 10px;
+          font-size: 16px;
+        }
+        
+        .login-input-group span {
+          color: #230f49;
+          font-size: 18px;
+          margin-right: 10px;
+          opacity: 0.8;
+        }
+        
+        /* Bouton de connexion */
+        .login-btn {
+          width: 100%;
+          padding: 12px;
+          background: linear-gradient(135deg, #230f49, #4b13b3);
+          color: white;
+          font-size: 16px;
+          font-weight: bold;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.3s ease-in-out;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .login-btn:hover {
+          background: linear-gradient(135deg, #4b13b3, #230f49);
+          transform: scale(1.05);
+        }
+        
+        /* Lien d'inscription */
+        .login-already-member {
+          font-size: 14px;
+          margin-top: 12px;
+        }
+        
+        .login-register-link {
+          color: #230f49;
+          font-weight: bold;
+          text-decoration: none;
+          transition: all 0.3s;
+          display: inline-block;
+          cursor: pointer;
+        }
+        
+        .login-register-link:hover {
+          text-decoration: underline;
+          color: #4b13b3;
+        }
+        
+        /* Responsive */
+        @media screen and (max-width: 768px) {
+          .login-conteneur {
+            flex-direction: column;
+            height: auto;
+            padding: 10px;
+          }
+        
+          .login-image-box {
+            display: none;
+          }
+        
+          .login-box {
+            width: 90%;
+            padding: 20px;
+          }
+        
+          .login-btn {
+            width: 100%;
+            font-size: 14px;
+            padding: 12px;
+          }
+        }
+        
+        @media screen and (max-width: 400px) {
+          .login-box {
+            width: 95%;
+            padding: 15px;
+          }
+        
+          .login-input-group {
+            padding: 8px;
+          }
+        
+          .login-btn {
+            padding: 10px;
+          }
+        }
+      `}</style>
 
-        <p className="login-redirect-text">
-          Vous n'avez pas de compte ?
-          <span
-            className="login-register-link"
-            onClick={() => navigate("/register")}
-          >
-            S'inscrire
-          </span>
-        </p>
+      <div className="login-conteneur1">
+        <div className="login-box">
+          <h2>Connexion</h2>
+          <form onSubmit={handleSubmit}>
+            <div className="login-input-group">
+              <span>📧</span>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                placeholder="Email"
+              />
+            </div>
+            <div className="login-input-group">
+              <span>🔒</span>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                placeholder="Mot de passe"
+              />
+            </div>
+            <button type="submit" className="login-btn">
+              Se connecter
+            </button>
+          </form>
+          {message && <p>{message}</p>}
+
+          <p className="login-already-member">
+            Vous n'avez pas de compte ?
+            <span
+              className="login-register-link"
+              onClick={() => navigate("/register")}
+            >
+              S'inscrire
+            </span>
+          </p>
+        </div>
+        <div className="login-image-box">
+          <img src="/gps.png" alt="login illustration" />
+        </div>
       </div>
-      <div className="login-image-box">
-        <img src="/gps.png" alt="login illustration" />
-      </div>
-    </div>
+    </>
   );
 };
 

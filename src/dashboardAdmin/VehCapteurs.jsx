@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -5,10 +7,6 @@ import { FaSearch, FaPlus } from 'react-icons/fa';
 import { Map, Loader } from 'lucide-react';
 import Navbar from './NavBar';
 import Sidebar from './SideBar';
-import './dashAdmin.css';
-import './SideBar.css';
-import './NavBar.css';
-import './Tous.css';
 import './VehCap.css';
 import PropTypes from 'prop-types';
 import jwt_decode from 'jwt-decode';
@@ -19,16 +17,19 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [vehicles, setVehicles] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
   const [showEditVehicleModal, setShowEditVehicleModal] = useState(false);
   const [showAddDriverModal, setShowAddDriverModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState(null);
-  const [vehicleForm, setVehicleForm] = useState({ name: '', uniqueId: '', driverId: '' });
-  const [editVehicleForm, setEditVehicleForm] = useState({ id: '', name: '', uniqueId: '', driverId: '' });
+  const [vehicleToArchive, setVehicleToArchive] = useState(null);
+  const [vehicleForm, setVehicleForm] = useState({ name: '', uniqueId: '', groupId: '', driverId: '' });
+  const [editVehicleForm, setEditVehicleForm] = useState({ id: '', name: '', uniqueId: '', groupId: '', driverId: '' });
   const [driverForm, setDriverForm] = useState({ name: '', uniqueId: '' });
-  const [loading, setLoading] = useState({ vehicles: false, positions: false, form: false, driverForm: false });
+  const [loading, setLoading] = useState({ vehicles: false, positions: false, form: false, driverForm: false, actions: false });
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusSelection, setStatusSelection] = useState('all');
@@ -98,43 +99,47 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       setError(null);
 
       try {
-        const groupsResponse = await axios.get(`${TRACCAR_API}/groups`, {
-          auth: TRACCAR_AUTH,
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        });
+        const [groupsResponse, driversResponse, devicesResponse] = await Promise.all([
+          axios.get(`${TRACCAR_API}/groups`, {
+            auth: TRACCAR_AUTH,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          }),
+          axios.get(`${TRACCAR_API}/drivers`, {
+            auth: TRACCAR_AUTH,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          }),
+          axios.get(`${TRACCAR_API}/devices`, {
+            auth: TRACCAR_AUTH,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          }),
+        ]);
 
         const matchedGroup = groupsResponse.data.find(
           group => group.name.toLowerCase() === adminGroupName.toLowerCase()
         );
         if (!matchedGroup) {
           setVehicles([]);
+          setGroups([]);
           setError(`Aucun groupe nommé "${adminGroupName}" trouvé dans Traccar`);
           return;
         }
         setAdminGroupId(matchedGroup.id);
+        setGroups([matchedGroup]);
 
-        const driversResponse = await axios.get(`${TRACCAR_API}/drivers`, {
-          auth: TRACCAR_AUTH,
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        });
         setDrivers(driversResponse.data.filter(driver => driver.attributes?.group === adminGroupName));
 
-        const devicesResponse = await axios.get(`${TRACCAR_API}/devices`, {
-          params: { groupId: matchedGroup.id },
-          auth: TRACCAR_AUTH,
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        });
-
         const mappedVehicles = devicesResponse.data
-          .filter(device => device.groupId === matchedGroup.id)
+          .filter(device => device.groupId === matchedGroup.id && !device.attributes?.archived)
           .map(device => ({
             id: device.id,
             name: device.name,
             groupName: adminGroupName,
-            status: device.status === 'online' ? 'online' : 'offline',
+            groupId: device.groupId,
+            status: device.status || 'unknown',
             lastUpdate: device.lastUpdate,
             driverName: device.attributes?.chauffeur || '-',
             originalData: device,
+            attributes: device.attributes || {},
           }));
 
         setVehicles(mappedVehicles);
@@ -146,6 +151,7 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
         console.error('Erreur API Traccar:', err);
         setError(err.response?.data?.message || 'Erreur de chargement des données depuis Traccar');
         setVehicles([]);
+        setGroups([]);
       } finally {
         setLoading(prev => ({ ...prev, vehicles: false }));
       }
@@ -173,6 +179,10 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       toast.error("L'identifiant unique est obligatoire");
       return false;
     }
+    if (!vehicleForm.groupId) {
+      toast.error("Le groupe est obligatoire");
+      return false;
+    }
     return true;
   };
 
@@ -187,7 +197,7 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       const payload = {
         name: vehicleForm.name,
         uniqueId: vehicleForm.uniqueId,
-        groupId: adminGroupId,
+        groupId: parseInt(vehicleForm.groupId),
         attributes: {
           chauffeur: vehicleForm.driverId
             ? drivers.find(driver => driver.id === parseInt(vehicleForm.driverId))?.name || ''
@@ -201,7 +211,7 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       });
 
       toast.success("Véhicule ajouté avec succès !");
-      setVehicleForm({ name: '', uniqueId: '', driverId: '' });
+      setVehicleForm({ name: '', uniqueId: '', groupId: adminGroupId?.toString() || '', driverId: '' });
       setShowAddVehicleModal(false);
 
       const devicesResponse = await axios.get(`${TRACCAR_API}/devices`, {
@@ -211,15 +221,17 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       });
 
       const mappedVehicles = devicesResponse.data
-        .filter(device => device.groupId === adminGroupId)
+        .filter(device => device.groupId === adminGroupId && !device.attributes?.archived)
         .map(device => ({
           id: device.id,
           name: device.name,
           groupName: adminGroupName,
-          status: device.status === 'online' ? 'online' : 'offline',
+          groupId: device.groupId,
+          status: device.status || 'unknown',
           lastUpdate: device.lastUpdate,
           driverName: device.attributes?.chauffeur || '-',
           originalData: device,
+          attributes: device.attributes || {},
         }));
 
       setVehicles(mappedVehicles);
@@ -250,6 +262,10 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       toast.error("L'identifiant unique est obligatoire");
       return false;
     }
+    if (!editVehicleForm.groupId) {
+      toast.error("Le groupe est obligatoire");
+      return false;
+    }
     return true;
   };
 
@@ -261,12 +277,23 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
     setFormError(null);
 
     try {
+      const vehicleRes = await axios.get(`${TRACCAR_API}/devices/${editVehicleForm.id}`, {
+        auth: TRACCAR_AUTH,
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      });
+      const vehicle = vehicleRes.data;
+
       const payload = {
         id: editVehicleForm.id,
         name: editVehicleForm.name,
         uniqueId: editVehicleForm.uniqueId,
-        groupId: adminGroupId,
+        groupId: parseInt(editVehicleForm.groupId),
+        category: vehicle.category || null,
+        phone: vehicle.phone || null,
+        model: vehicle.model || null,
+        contact: vehicle.contact || null,
         attributes: {
+          ...vehicle.attributes,
           chauffeur: editVehicleForm.driverId
             ? drivers.find(driver => driver.id === parseInt(editVehicleForm.driverId))?.name || ''
             : '',
@@ -279,7 +306,7 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       });
 
       toast.success("Véhicule modifié avec succès !");
-      setEditVehicleForm({ id: '', name: '', uniqueId: '', driverId: '' });
+      setEditVehicleForm({ id: '', name: '', uniqueId: '', groupId: adminGroupId?.toString() || '', driverId: '' });
       setShowEditVehicleModal(false);
 
       const devicesResponse = await axios.get(`${TRACCAR_API}/devices`, {
@@ -289,15 +316,17 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       });
 
       const mappedVehicles = devicesResponse.data
-        .filter(device => device.groupId === adminGroupId)
+        .filter(device => device.groupId === adminGroupId && !device.attributes?.archived)
         .map(device => ({
           id: device.id,
           name: device.name,
           groupName: adminGroupName,
-          status: device.status === 'online' ? 'online' : 'offline',
+          groupId: device.groupId,
+          status: device.status || 'unknown',
           lastUpdate: device.lastUpdate,
           driverName: device.attributes?.chauffeur || '-',
           originalData: device,
+          attributes: device.attributes || {},
         }));
 
       setVehicles(mappedVehicles);
@@ -331,15 +360,17 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       });
 
       const mappedVehicles = devicesResponse.data
-        .filter(device => device.groupId === adminGroupId)
+        .filter(device => device.groupId === adminGroupId && !device.attributes?.archived)
         .map(device => ({
           id: device.id,
           name: device.name,
           groupName: adminGroupName,
-          status: device.status === 'online' ? 'online' : 'offline',
+          groupId: device.groupId,
+          status: device.status || 'unknown',
           lastUpdate: device.lastUpdate,
           driverName: device.attributes?.chauffeur || '-',
           originalData: device,
+          attributes: device.attributes || {},
         }));
 
       setVehicles(mappedVehicles);
@@ -350,6 +381,75 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       toast.error(`Échec de la suppression du véhicule: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(prev => ({ ...prev, form: false }));
+    }
+  };
+
+  // Archivage d'un véhicule
+  const handleArchive = async () => {
+    if (!vehicleToArchive) return;
+
+    setLoading(prev => ({ ...prev, actions: true }));
+    setError(null);
+
+    try {
+      const vehicleRes = await axios.get(`${TRACCAR_API}/devices/${vehicleToArchive.id}`, {
+        auth: TRACCAR_AUTH,
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      });
+      const vehicle = vehicleRes.data;
+
+      await axios.put(
+        `${TRACCAR_API}/devices/${vehicleToArchive.id}`,
+        {
+          id: vehicleToArchive.id,
+          name: vehicle.name,
+          uniqueId: vehicle.uniqueId,
+          groupId: vehicle.groupId || adminGroupId,
+          category: vehicle.category || null,
+          phone: vehicle.phone || null,
+          model: vehicle.model || null,
+          contact: vehicle.contact || null,
+          attributes: {
+            ...vehicle.attributes,
+            archived: true,
+          },
+        },
+        {
+          auth: TRACCAR_AUTH,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+
+      toast.success(`Véhicule "${vehicleToArchive.name}" archivé avec succès !`);
+
+      const devicesResponse = await axios.get(`${TRACCAR_API}/devices`, {
+        params: { groupId: adminGroupId },
+        auth: TRACCAR_AUTH,
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      });
+
+      const mappedVehicles = devicesResponse.data
+        .filter(device => device.groupId === adminGroupId && !device.attributes?.archived)
+        .map(device => ({
+          id: device.id,
+          name: device.name,
+          groupName: adminGroupName,
+          groupId: device.groupId,
+          status: device.status || 'unknown',
+          lastUpdate: device.lastUpdate,
+          driverName: device.attributes?.chauffeur || '-',
+          originalData: device,
+          attributes: device.attributes || {},
+        }));
+
+      setVehicles(mappedVehicles);
+      setShowArchiveModal(false);
+      setVehicleToArchive(null);
+    } catch (err) {
+      console.error('Erreur lors de l\'archivage du véhicule:', err);
+      toast.error(`Échec de l'archivage du véhicule: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, actions: false }));
     }
   };
 
@@ -421,12 +521,12 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
 
   // Filtrage des véhicules
   const filteredVehicles = vehicles.filter(vehicle => {
-    const matchesStatus = statusSelection === 'all' || vehicle.status === statusSelection;
-    const matchesFilter = !statusFilter || vehicle.status === statusFilter;
-    const matchesSearch =
+    const matchesStatus = statusSelection === 'all' || (vehicle.status || 'unknown') === statusSelection;
+    const matchesFilter = !statusFilter || (vehicle.status || 'unknown') === statusFilter;
+    const matchesSearch = 
       vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       vehicle.id.toString().includes(searchTerm) ||
-      vehicle.driverName.toLowerCase().includes(searchTerm.toLowerCase());
+      (vehicle.driverName && vehicle.driverName.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesStatus && matchesFilter && matchesSearch;
   });
 
@@ -476,9 +576,9 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       navigate('/trajet', {
         state: { positions, vehicleName: selectedVehicle.name, period: { from: fromUTC, to: toUTC } },
       });
-    } catch (error) {
-      console.error('Erreur lors du chargement du trajet:', error);
-      setFormError('Erreur lors du chargement du trajet: ' + error.message);
+    } catch (err) {
+      console.error('Erreur lors du chargement du trajet:', err);
+      setFormError('Erreur lors du chargement du trajet: ' + err.message);
     } finally {
       setLoading(prev => ({ ...prev, positions: false }));
     }
@@ -487,7 +587,19 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   return (
-    <div className={`dashboard-admin ${showDeleteModal || showAddVehicleModal || showEditVehicleModal || showAddDriverModal ? "blurred" : ""}`}>
+    <div className={`dashboard-admin ${showDeleteModal || showAddVehicleModal || showEditVehicleModal || showAddDriverModal || showArchiveModal ? "blurred" : ""}`}>
+      <style>
+        {`
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+        `}
+      </style>
       <button className="toggle-btn" onClick={toggleSidebar}>
         {isSidebarOpen ? '✕' : '☰'}
       </button>
@@ -521,6 +633,7 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
               <option value="all">Tous</option>
               <option value="online">Online</option>
               <option value="offline">Offline</option>
+              <option value="unknown">Unknown</option>
             </select>
           </div>
 
@@ -572,7 +685,8 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
                     <td>
                       <span
                         className={`status-badge ${
-                          vehicle.status === 'online' ? 'online-oval' : 'offline-oval'
+                          vehicle.status === 'online' ? 'online' : 
+                          vehicle.status === 'offline' ? 'offline' : 'unknown'
                         }`}
                       >
                         {vehicle.status || 'inconnu'}
@@ -581,41 +695,46 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
                     <td className="actions-cell">
                       <div className="action-buttons">
                         <button
-                          className="btn-edit"
+                          className="btn-action btn-edit"
                           onClick={() => {
                             setEditVehicleForm({
                               id: vehicle.id,
                               name: vehicle.name,
                               uniqueId: vehicle.originalData.uniqueId,
-                              driverId: drivers.find(d => d.name === vehicle.driverName)?.id.toString() || '',
+                              groupId: vehicle.groupId?.toString() || adminGroupId?.toString() || '',
+                              driverId: vehicle.attributes?.chauffeur
+                                ? drivers.find(d => d.name === vehicle.attributes.chauffeur)?.id.toString() || ''
+                                : '',
                             });
                             setShowEditVehicleModal(true);
                           }}
-                          disabled={loading.form}
+                          disabled={loading.form || loading.actions}
                           title="Modifier le véhicule"
+                          aria-label="Modifier"
                         >
-                          <i className="edit-icon">✏️</i>
+                          <i className="icon-edit">✏️</i>
                         </button>
+                        
                         <button
-                          className="btn-delete"
+                          className="btn-action btn-delete"
                           onClick={() => {
-                            setVehicleToDelete(vehicle.id);
-                            setShowDeleteModal(true);
+                            setVehicleToArchive({ id: vehicle.id, name: vehicle.name });
+                            setShowArchiveModal(true);
                           }}
-                          disabled={loading.form}
-                          title="Supprimer le véhicule"
+                          disabled={loading.form || loading.actions}
+                          title="Archiver le véhicule"
+                          aria-label="Archiver"
                         >
-                          <i className="delete-icon">🗑️</i>
+                          <i className="icon-archive">🗑️</i>
                         </button>
                         <button
-                         className="btn-delete"
+                          className="btn-action btn-edit"
                           onClick={() => setSelectedVehicle(vehicle)}
                           disabled={loading.positions}
                           title="Voir le trajet"
+                          aria-label="Trajet"
                         >
-                           
-                           <i className="delete-icon">🗺️</i>
-                          
+                          <i className="icon-edit">🗺️</i>
                         </button>
                       </div>
                     </td>
@@ -714,77 +833,167 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       {showAddVehicleModal && (
         <div className="modal-overlay active">
           <div className="modal-content">
-            <div className="group-container">
-              <div className="group-form-container">
+            <div className="device-container">
+              <div className="device-form-container">
+                <div className="device-header">
+                  <h2>Ajouter un véhicule</h2>
+                  <div className="device-decoration"></div>
+                </div>
+
                 {formError && (
-                  <div className="alert error">
-                    {formError}
-                    <button onClick={() => setFormError(null)} type="button">×</button>
+                  <div className="device-message error">
+                    <span className="message-icon">❌</span>
+                    <p>{formError}</p>
                   </div>
                 )}
+
                 <form onSubmit={handleVehicleFormSubmit}>
-                  <div className="group-input-group">
-                    <label htmlFor="name">Nom du véhicule</label>
-                    <input
-                      id="name"
-                      type="text"
-                      name="name"
-                      placeholder="Entrez le nom (ex: Immatriculation)"
-                      value={vehicleForm.name}
-                      onChange={handleVehicleFormChange}
-                      required
-                    />
-                  </div>
-                  <div className="group-input-group">
-                    <label htmlFor="uniqueId">Identifiant unique</label>
-                    <input
-                      id="uniqueId"
-                      type="text"
-                      name="uniqueId"
-                      placeholder="Entrez l'ID unique"
-                      value={vehicleForm.uniqueId}
-                      onChange={handleVehicleFormChange}
-                      required
-                    />
-                  </div>
-                  <div className="group-input-group">
-                    <label htmlFor="driverId">Chauffeur (optionnel)</label>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <select
-                        id="driverId"
-                        name="driverId"
-                        value={vehicleForm.driverId}
-                        onChange={handleVehicleFormChange}
-                      >
-                        <option value="">Aucun chauffeur</option>
-                        {drivers.map(driver => (
-                          <option key={driver.id} value={driver.id}>
-                            {driver.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="driver-add-btn"
-                        onClick={() => setShowAddDriverModal(true)}
-                        disabled={loading.driverForm}
-                        title="Ajouter un chauffeur"
-                      >
-                        <FaPlus size={14} />
-                      </button>
+                  <div className="device-form-section">
+                    <h3 className="section-title">Informations principales</h3>
+                    <div className="form-grid">
+                      <div className="device-form-group">
+                        <label className="required-field">Nom</label>
+                        <input
+                          type="text"
+                          name="name"
+                          required
+                          value={vehicleForm.name}
+                          onChange={handleVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Entrez le nom du véhicule"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label className="required-field">Identifiant unique</label>
+                        <input
+                          type="text"
+                          name="uniqueId"
+                          required
+                          value={vehicleForm.uniqueId}
+                          onChange={handleVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="ID ou matricule"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label className="required-field">Groupe</label>
+                        <select
+                          name="groupId"
+                          value={vehicleForm.groupId || adminGroupId || ''}
+                          onChange={handleVehicleFormChange}
+                          disabled={loading.form || !adminGroupId}
+                          required
+                        >
+                          <option value="">Sélectionnez un groupe</option>
+                          {groups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="device-form-group">
+                        <label>Chauffeur</label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <select
+                            name="driverId"
+                            value={vehicleForm.driverId}
+                            onChange={handleVehicleFormChange}
+                            disabled={drivers.length === 0 || loading.form}
+                          >
+                            <option value="">Sélectionner un chauffeur</option>
+                            {drivers.map((driver) => (
+                              <option key={driver.id} value={driver.id}>
+                                {driver.name} ({driver.uniqueId})
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="driver-add-btn"
+                            onClick={() => setShowAddDriverModal(true)}
+                            disabled={loading.form}
+                            title="Ajouter un chauffeur"
+                          >
+                            <FaPlus size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  <div className="device-form-section">
+                    <h3 className="section-title">Informations complémentaires</h3>
+                    <div className="form-grid">
+                      <div className="device-form-group">
+                        <label>Catégorie</label>
+                        <input
+                          type="text"
+                          name="category"
+                          value={vehicleForm.category || ''}
+                          onChange={handleVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Catégorie du véhicule"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label>Modèle</label>
+                        <input
+                          type="text"
+                          name="model"
+                          value={vehicleForm.model || ''}
+                          onChange={handleVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Modèle du véhicule"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label>Téléphone (SIM)</label>
+                        <input
+                          type="text"
+                          name="phone"
+                          value={vehicleForm.phone || ''}
+                          onChange={handleVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Numéro de téléphone"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label>Contact</label>
+                        <input
+                          type="text"
+                          name="contact"
+                          value={vehicleForm.contact || ''}
+                          onChange={handleVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Personne à contacter"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="form-actions">
                     <button
                       type="submit"
-                      className="group-btn primary"
                       disabled={loading.form}
+                      className="device-submit-btn"
                     >
-                      {loading.form ? 'Envoi...' : 'Enregistrer'}
+                      {loading.form ? (
+                        <>
+                          <Loader className="loading-spinner" size={20} />
+                          Envoi en cours...
+                        </>
+                      ) : "Ajouter le véhicule"}
                     </button>
                     <button
                       type="button"
-                      className="group-btn secondary"
+                      className="vehicle-btn secondary"
                       onClick={() => setShowAddVehicleModal(false)}
                       disabled={loading.form}
                     >
@@ -801,77 +1010,167 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       {showEditVehicleModal && (
         <div className="modal-overlay active">
           <div className="modal-content">
-            <div className="group-container">
-              <div className="group-form-container">
+            <div className="device-container">
+              <div className="device-form-container">
+                <div className="device-header">
+                  <h2>Modifier le véhicule</h2>
+                  <div className="device-decoration"></div>
+                </div>
+
                 {formError && (
-                  <div className="alert error">
-                    {formError}
-                    <button onClick={() => setFormError(null)} type="button">×</button>
+                  <div className="device-message error">
+                    <span className="message-icon">❌</span>
+                    <p>{formError}</p>
                   </div>
                 )}
+
                 <form onSubmit={handleEditVehicleFormSubmit}>
-                  <div className="group-input-group">
-                    <label htmlFor="name">Nom du véhicule</label>
-                    <input
-                      id="name"
-                      type="text"
-                      name="name"
-                      placeholder="Entrez le nom (ex: Immatriculation)"
-                      value={editVehicleForm.name}
-                      onChange={handleEditVehicleFormChange}
-                      required
-                    />
-                  </div>
-                  <div className="group-input-group">
-                    <label htmlFor="uniqueId">Identifiant unique</label>
-                    <input
-                      id="uniqueId"
-                      type="text"
-                      name="uniqueId"
-                      placeholder="Entrez l'ID unique"
-                      value={editVehicleForm.uniqueId}
-                      onChange={handleEditVehicleFormChange}
-                      required
-                    />
-                  </div>
-                  <div className="group-input-group">
-                    <label htmlFor="driverId">Chauffeur (optionnel)</label>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                      <select
-                        id="driverId"
-                        name="driverId"
-                        value={editVehicleForm.driverId}
-                        onChange={handleEditVehicleFormChange}
-                      >
-                        <option value="">Aucun chauffeur</option>
-                        {drivers.map(driver => (
-                          <option key={driver.id} value={driver.id}>
-                            {driver.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        className="driver-add-btn"
-                        onClick={() => setShowAddDriverModal(true)}
-                        disabled={loading.driverForm}
-                        title="Ajouter un chauffeur"
-                      >
-                        <FaPlus size={14} />
-                      </button>
+                  <div className="device-form-section">
+                    <h3 className="section-title">Informations principales</h3>
+                    <div className="form-grid">
+                      <div className="device-form-group">
+                        <label className="required-field">Nom</label>
+                        <input
+                          type="text"
+                          name="name"
+                          required
+                          value={editVehicleForm.name}
+                          onChange={handleEditVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Entrez le nom du véhicule"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label className="required-field">Identifiant unique</label>
+                        <input
+                          type="text"
+                          name="uniqueId"
+                          required
+                          value={editVehicleForm.uniqueId}
+                          onChange={handleEditVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="ID ou matricule"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label className="required-field">Groupe</label>
+                        <select
+                          name="groupId"
+                          value={editVehicleForm.groupId || adminGroupId || ''}
+                          onChange={handleEditVehicleFormChange}
+                          disabled={loading.form || !adminGroupId}
+                          required
+                        >
+                          <option value="">Sélectionnez un groupe</option>
+                          {groups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="device-form-group">
+                        <label>Chauffeur</label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <select
+                            name="driverId"
+                            value={editVehicleForm.driverId}
+                            onChange={handleEditVehicleFormChange}
+                            disabled={drivers.length === 0 || loading.form}
+                          >
+                            <option value="">Sélectionner un chauffeur</option>
+                            {drivers.map((driver) => (
+                              <option key={driver.id} value={driver.id}>
+                                {driver.name} ({driver.uniqueId})
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="driver-add-btn"
+                            onClick={() => setShowAddDriverModal(true)}
+                            disabled={loading.form}
+                            title="Ajouter un chauffeur"
+                          >
+                            <FaPlus size={14} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  <div className="device-form-section">
+                    <h3 className="section-title">Informations complémentaires</h3>
+                    <div className="form-grid">
+                      <div className="device-form-group">
+                        <label>Catégorie</label>
+                        <input
+                          type="text"
+                          name="category"
+                          value={editVehicleForm.category || ''}
+                          onChange={handleEditVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Catégorie du véhicule"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label>Modèle</label>
+                        <input
+                          type="text"
+                          name="model"
+                          value={editVehicleForm.model || ''}
+                          onChange={handleEditVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Modèle du véhicule"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label>Téléphone (SIM)</label>
+                        <input
+                          type="text"
+                          name="phone"
+                          value={editVehicleForm.phone || ''}
+                          onChange={handleEditVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Numéro de téléphone"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label>Contact</label>
+                        <input
+                          type="text"
+                          name="contact"
+                          value={editVehicleForm.contact || ''}
+                          onChange={handleEditVehicleFormChange}
+                          disabled={loading.form}
+                          placeholder="Personne à contacter"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="form-actions">
                     <button
                       type="submit"
-                      className="group-btn primary"
                       disabled={loading.form}
+                      className="device-submit-btn"
                     >
-                      {loading.form ? 'Envoi...' : 'Enregistrer'}
+                      {loading.form ? (
+                        <>
+                          <Loader className="loading-spinner" size={20} />
+                          Envoi en cours...
+                        </>
+                      ) : "Mettre à jour"}
                     </button>
                     <button
                       type="button"
-                      className="group-btn secondary"
+                      className="vehicle-btn secondary"
                       onClick={() => setShowEditVehicleModal(false)}
                       disabled={loading.form}
                     >
@@ -888,50 +1187,67 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
       {showAddDriverModal && (
         <div className="modal-overlay active">
           <div className="modal-content">
-            <div className="group-container">
-              <div className="group-form-container">
+            <div className="device-container">
+              <div className="device-form-container">
+                <div className="device-header">
+                  <h2>Ajouter un chauffeur</h2>
+                  <div className="device-decoration"></div>
+                </div>
+
                 {driverFormError && (
-                  <div className="alert error">
-                    {driverFormError}
-                    <button onClick={() => setDriverFormError(null)} type="button">×</button>
+                  <div className="device-message error">
+                    <span className="message-icon">❌</span>
+                    <p>{driverFormError}</p>
                   </div>
                 )}
+
                 <form onSubmit={handleDriverFormSubmit}>
-                  <div className="group-input-group">
-                    <label htmlFor="driverName">Nom du chauffeur</label>
-                    <input
-                      id="driverName"
-                      type="text"
-                      name="name"
-                      placeholder="Entrez le nom"
-                      value={driverForm.name}
-                      onChange={handleDriverFormChange}
-                      required
-                    />
+                  <div className="device-form-section">
+                    <div className="form-grid">
+                      <div className="device-form-group">
+                        <label className="required-field">Nom du chauffeur</label>
+                        <input
+                          type="text"
+                          name="name"
+                          required
+                          value={driverForm.name}
+                          onChange={handleDriverFormChange}
+                          disabled={loading.driverForm}
+                          placeholder="Entrez le nom complet"
+                        />
+                      </div>
+
+                      <div className="device-form-group">
+                        <label className="required-field">Identifiant unique</label>
+                        <input
+                          type="text"
+                          name="uniqueId"
+                          required
+                          value={driverForm.uniqueId}
+                          onChange={handleDriverFormChange}
+                          disabled={loading.driverForm}
+                          placeholder="ID ou matricule"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="group-input-group">
-                    <label htmlFor="driverUniqueId">Identifiant unique</label>
-                    <input
-                      id="driverUniqueId"
-                      type="text"
-                      name="uniqueId"
-                      placeholder="Entrez l'ID unique"
-                      value={driverForm.uniqueId}
-                      onChange={handleDriverFormChange}
-                      required
-                    />
-                  </div>
+
                   <div className="form-actions">
                     <button
                       type="submit"
-                      className="group-btn primary"
                       disabled={loading.driverForm}
+                      className="device-submit-btn"
                     >
-                      {loading.driverForm ? 'Envoi...' : 'Enregistrer'}
+                      {loading.driverForm ? (
+                        <>
+                          <Loader className="loading-spinner" size={20} />
+                          Envoi en cours...
+                        </>
+                      ) : "Ajouter le chauffeur"}
                     </button>
                     <button
                       type="button"
-                      className="group-btn secondary"
+                      className="vehicle-btn secondary"
                       onClick={() => setShowAddDriverModal(false)}
                       disabled={loading.driverForm}
                     >
@@ -945,17 +1261,28 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
         </div>
       )}
 
-      {showDeleteModal && (
+
+      {showArchiveModal && vehicleToArchive && (
         <div className="modal-overlay active">
-          <div className="modal-container">
-            <h3 className="modal-title">Confirmer la suppression</h3>
-            <p className="modal-message">Êtes-vous sûr de vouloir supprimer ce véhicule ?</p>
-            <div className="modal-actions">
-              <button onClick={handleDeleteVehicle} className="btn-confirm-delete">
-                Confirmer
+          <div className="modal-content">
+            <h3 className="confirmation-modal">⚠️ Confirmer l'archivage</h3>
+            <p className="modal-message">
+              Êtes-vous sûr de vouloir archiver le véhicule <strong>{vehicleToArchive.name}</strong> ?
+            </p>
+            <div className="form-actions">
+              <button
+                onClick={handleArchive}
+                className="group-btn danger"
+                disabled={loading.actions}
+              >
+                {loading.actions ? 'Archivage...' : 'Confirmer'}
               </button>
-              <button onClick={() => setShowDeleteModal(false)} className="btn-cancel-delete">
-                <span className="cancel-icon">❌</span>
+              <button
+                onClick={() => setShowArchiveModal(false)}
+                className="group-btn secondary"
+                disabled={loading.actions}
+              >
+                <i className="cancel-icon">❌</i>
                 Annuler
               </button>
             </div>

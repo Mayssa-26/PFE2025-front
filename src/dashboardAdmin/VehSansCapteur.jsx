@@ -3,8 +3,6 @@ import axios from 'axios';
 import jwt_decode from 'jwt-decode';
 import Navbar from './NavBar';
 import Sidebar from './SideBar';
-import '../dashboardAdmin/SideBar.css';
-import '../dashboardAdmin/NavBar.css';
 import './Tous.css';
 
 const VehiculesSansCapteur = () => {

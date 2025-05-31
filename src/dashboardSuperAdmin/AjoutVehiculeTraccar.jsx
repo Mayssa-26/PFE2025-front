@@ -1,9 +1,11 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import axios from "axios";
 import "./AjoutVehTraccar.css";
 import SidebarSupAdmin from "./SideBarSupAdmin";
 import NavbarSuperAdmin from "./NavBarSupAdmin";
-import { useNavigate, useLocation, useParams } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const AddDeviceForm = () => {
   const TRACCAR_API = "https://yepyou.treetronix.com/api";
@@ -13,11 +15,8 @@ const AddDeviceForm = () => {
   };
 
   const navigate = useNavigate();
-  const location = useLocation();
-  const { id } = useParams();
-  
-  const [initialVehicle, setInitialVehicle] = useState(location.state?.vehicle);
-  const isEditMode = !!id;
+  const { state } = useLocation();
+  const isEditMode = !!state?.vehicleToEdit;
 
   const [form, setForm] = useState({
     name: "",
@@ -28,6 +27,8 @@ const AddDeviceForm = () => {
     phone: "",
     model: "",
     contact: "",
+    archived: false,
+    status: "offline"
   });
 
   const [groups, setGroups] = useState([]);
@@ -36,62 +37,30 @@ const AddDeviceForm = () => {
   const [loading, setLoading] = useState({ 
     form: false, 
     groups: false,
-    vehicle: false,
     drivers: false,
     allDrivers: false
   });
   const [message, setMessage] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Chargement initial du véhicule en mode édition
+  // Initialisation du formulaire
   useEffect(() => {
-    if (isEditMode && !initialVehicle) {
-      const fetchVehicle = async () => {
-        setLoading(prev => ({ ...prev, vehicle: true }));
-        try {
-          const response = await axios.get(`${TRACCAR_API}/devices/${id}`, {
-            auth: TRACCAR_AUTH,
-            headers: {
-              "Content-Type": "application/json",
-              "Accept": "application/json",
-            },
-          });
-          setInitialVehicle(response.data);
-          setForm({
-            name: response.data.name || "",
-            uniqueId: response.data.uniqueId || "",
-            chauffeur: response.data.attributes?.chauffeur || "",
-            groupId: response.data.groupId || 0,
-            category: response.data.category || "default",
-            phone: response.data.phone || "",
-            model: response.data.model || "",
-            contact: response.data.contact || "",
-          });
-        } catch (err) {
-          console.error("Erreur de récupération du véhicule:", err);
-          setMessage({
-            type: "error",
-            text: `Échec du chargement du véhicule: ${err.response?.data?.message || err.message}`,
-          });
-        } finally {
-          setLoading(prev => ({ ...prev, vehicle: false }));
-        }
-      };
-      
-      fetchVehicle();
-    } else if (initialVehicle) {
+    if (isEditMode) {
+      const { vehicleToEdit } = state;
       setForm({
-        name: initialVehicle.name || "",
-        uniqueId: initialVehicle.uniqueId || "",
-        chauffeur: initialVehicle.attributes?.chauffeur || "",
-        groupId: initialVehicle.groupId || 0,
-        category: initialVehicle.category || "default",
-        phone: initialVehicle.phone || "",
-        model: initialVehicle.model || "",
-        contact: initialVehicle.contact || "",
+        name: vehicleToEdit.name || "",
+        uniqueId: vehicleToEdit.uniqueId || "",
+        chauffeur: vehicleToEdit.attributes?.chauffeur || "",
+        groupId: vehicleToEdit.groupId || 0,
+        category: vehicleToEdit.category || "default",
+        phone: vehicleToEdit.phone || "",
+        model: vehicleToEdit.model || "",
+        contact: vehicleToEdit.contact || "",
+        archived: vehicleToEdit.attributes?.archived || false,
+        status: vehicleToEdit.status || "offline"
       });
     }
-  }, [id, initialVehicle, isEditMode]);
+  }, [isEditMode, state]);
 
   // Chargement des groupes
   useEffect(() => {
@@ -124,7 +93,7 @@ const AddDeviceForm = () => {
     fetchGroups();
   }, []);
 
-  // Chargement de TOUS les chauffeurs une seule fois au montage
+  // Chargement de tous les chauffeurs
   useEffect(() => {
     const fetchAllDrivers = async () => {
       setLoading(prev => ({ ...prev, allDrivers: true }));
@@ -151,7 +120,7 @@ const AddDeviceForm = () => {
     fetchAllDrivers();
   }, []);
 
-  // Filtrage des chauffeurs quand le groupe change
+  // Filtrage des chauffeurs par groupe
   useEffect(() => {
     const filterDriversByGroup = () => {
       if (!form.groupId || form.groupId === 0) {
@@ -163,7 +132,6 @@ const AddDeviceForm = () => {
       setMessage(null);
 
       try {
-        // Trouver le groupe sélectionné
         const selectedGroup = groups.find(g => g.id === Number(form.groupId));
         if (!selectedGroup) {
           setDrivers([]);
@@ -174,10 +142,8 @@ const AddDeviceForm = () => {
           return;
         }
 
-        // Filtrer les chauffeurs par attribut group
         const filteredDrivers = allDrivers
           .filter(driver => {
-            // Vérifier que les attributs existent et que le groupe correspond
             const driverGroup = driver.attributes?.group?.trim();
             return driverGroup && driverGroup === selectedGroup.name.trim();
           })
@@ -217,6 +183,52 @@ const AddDeviceForm = () => {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleArchive = async () => {
+    if (!isEditMode) return;
+    setLoading(prev => ({ ...prev, form: true }));
+    setMessage(null);
+
+    try {
+      await axios.put(
+        `${TRACCAR_API}/devices/${state.vehicleToEdit.id}`,
+        {
+          id: state.vehicleToEdit.id,
+          name: form.name,
+          uniqueId: form.uniqueId,
+          groupId: Number(form.groupId) || 0,
+          category: form.category || null,
+          phone: form.phone || null,
+          model: form.model || null,
+          contact: form.contact || null,
+          attributes: {
+            ...state.vehicleToEdit.attributes,
+            chauffeur: form.chauffeur,
+            archived: true,
+          },
+        },
+        {
+          auth: TRACCAR_AUTH,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      setMessage({
+        type: "success",
+        text: `Véhicule "${form.name}" archivé avec succès`,
+      });
+      setTimeout(() => navigate("/VehiculesAvecCapteurSA"), 2000);
+    } catch (err) {
+      console.error("Erreur lors de l'archivage:", err);
+      setMessage({
+        type: "error",
+        text: `Échec de l'archivage: ${err.response?.data?.message || err.message}`,
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, form: false }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(prev => ({ ...prev, form: true }));
@@ -232,14 +244,16 @@ const AddDeviceForm = () => {
         model: form.model || null,
         contact: form.contact || null,
         attributes: {
+          ...(isEditMode ? state.vehicleToEdit.attributes : {}),
           chauffeur: form.chauffeur,
+          archived: form.archived
         },
       };
 
       if (isEditMode) {
-        devicePayload.id = id;
+        devicePayload.id = state.vehicleToEdit.id;
         await axios.put(
-          `${TRACCAR_API}/devices/${id}`,
+          `${TRACCAR_API}/devices/${state.vehicleToEdit.id}`,
           devicePayload,
           {
             auth: TRACCAR_AUTH,
@@ -253,7 +267,7 @@ const AddDeviceForm = () => {
           text: `Véhicule "${form.name}" mis à jour avec succès`,
         });
       } else {
-        const response = await axios.post(
+        await axios.post(
           `${TRACCAR_API}/devices`,
           devicePayload,
           {
@@ -265,7 +279,7 @@ const AddDeviceForm = () => {
         );
         setMessage({
           type: "success",
-          text: `Véhicule "${form.name}" ajouté avec succès (ID: ${response.data.id})`,
+          text: `Véhicule "${form.name}" ajouté avec succès`,
         });
         setForm({
           name: "",
@@ -276,6 +290,8 @@ const AddDeviceForm = () => {
           phone: "",
           model: "",
           contact: "",
+          archived: false,
+          status: "offline"
         });
       }
 
@@ -296,7 +312,7 @@ const AddDeviceForm = () => {
   };
 
   const formTitle = isEditMode 
-    ? `Modifier le véhicule: ${initialVehicle?.name || id}` 
+    ? `Modifier le véhicule: ${state?.vehicleToEdit?.name || ''}` 
     : "Ajouter un nouveau véhicule";
 
   return (
@@ -337,7 +353,7 @@ const AddDeviceForm = () => {
                       required
                       value={form.name}
                       onChange={handleChange}
-                      disabled={loading.vehicle}
+                      disabled={loading.form}
                     />
                   </div>
 
@@ -349,7 +365,7 @@ const AddDeviceForm = () => {
                       required
                       value={form.uniqueId}
                       onChange={handleChange}
-                      disabled={loading.vehicle}
+                      disabled={loading.form}
                     />
                     <span className="input-hint">IMEI ou autre identifiant unique</span>
                   </div>
@@ -365,7 +381,7 @@ const AddDeviceForm = () => {
                         name="groupId"
                         value={form.groupId}
                         onChange={handleChange}
-                        disabled={groups.length === 0 || loading.vehicle}
+                        disabled={groups.length === 0 || loading.form}
                       >
                         <option value="0">Aucun groupe</option>
                         {groups.map((group) => (
@@ -388,7 +404,7 @@ const AddDeviceForm = () => {
                         name="chauffeur"
                         value={form.chauffeur}
                         onChange={handleChange}
-                        disabled={drivers.length === 0 || loading.vehicle}
+                        disabled={drivers.length === 0 || loading.form}
                       >
                         <option value="">Sélectionner un chauffeur</option>
                         {drivers.map((driver) => (
@@ -412,7 +428,7 @@ const AddDeviceForm = () => {
                       name="category"
                       value={form.category}
                       onChange={handleChange}
-                      disabled={loading.vehicle}
+                      disabled={loading.form}
                     />
                   </div>
 
@@ -423,7 +439,7 @@ const AddDeviceForm = () => {
                       name="model"
                       value={form.model}
                       onChange={handleChange}
-                      disabled={loading.vehicle}
+                      disabled={loading.form}
                     />
                   </div>
 
@@ -434,7 +450,7 @@ const AddDeviceForm = () => {
                       name="phone"
                       value={form.phone}
                       onChange={handleChange}
-                      disabled={loading.vehicle}
+                      disabled={loading.form}
                     />
                   </div>
 
@@ -445,7 +461,7 @@ const AddDeviceForm = () => {
                       name="contact"
                       value={form.contact}
                       onChange={handleChange}
-                      disabled={loading.vehicle}
+                      disabled={loading.form}
                     />
                   </div>
                 </div>
@@ -454,7 +470,7 @@ const AddDeviceForm = () => {
               <div className="form-actions">
                 <button
                   type="submit"
-                  disabled={loading.form || loading.vehicle}
+                  disabled={loading.form}
                   className="device-submit-btn"
                 >
                   {loading.form ? (
@@ -485,6 +501,16 @@ const AddDeviceForm = () => {
                     </>
                   ) : isEditMode ? "Mettre à jour" : "Ajouter le véhicule"}
                 </button>
+                {isEditMode && (
+                  <button
+                    type="button"
+                    className="vehicle-btn archive"
+                    onClick={handleArchive}
+                    disabled={loading.form}
+                  >
+                    Archiver
+                  </button>
+                )}
                 <button
                   type="button"
                   className="vehicle-btn secondary"
