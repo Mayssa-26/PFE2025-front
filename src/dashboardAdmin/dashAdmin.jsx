@@ -6,7 +6,7 @@ import axios from "axios";
 import jwt_decode from "jwt-decode";
 import Navbar from "./NavBar";
 import Sidebar from "./SideBar";
-import "./tous.css";
+
 
 const DashAdmin = () => {
   const navigate = useNavigate();

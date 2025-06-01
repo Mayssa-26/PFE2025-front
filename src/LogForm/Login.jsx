@@ -75,7 +75,7 @@ const Login = () => {
           margin: auto;
           flex-wrap: wrap;
           gap: 0px;
-          margin-top: 0px;
+          margin-top: 30px;
         }
         
         .login-box h2 {

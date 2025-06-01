@@ -9,7 +9,6 @@ import SidebarSupAdmin from "./SideBarSupAdmin";
 import axios from "axios";
 import { ShoppingBag, BarChart2, PieChart, TrendingUp } from "lucide-react";
 import { FaSearch } from "react-icons/fa";
-import "../dashboardAdmin/tous.css";
 import { useNavigate } from "react-router-dom";
 
 const DashSuperAdmin = () => {

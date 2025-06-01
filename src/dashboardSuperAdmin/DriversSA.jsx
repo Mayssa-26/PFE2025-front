@@ -1644,7 +1644,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
                 onClick={handleArchiveDriver}
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#e74c3c',
+                  backgroundColor: 'red',
                   color: 'white',
                   border: 'none',
                   borderRadius: '5px',

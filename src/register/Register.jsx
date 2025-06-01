@@ -61,6 +61,9 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
       [name]: value,
     }));
   };
+const formatDateForInput = (isoString) => {
+  return isoString ? isoString.split('T')[0] : '';
+};
 
   return (
     <>
@@ -379,7 +382,7 @@ const Register = ({ initialData = {}, onSubmit, onCancel, isEditMode = false }) 
               <input
                 type="date"
                 name="dateNaissance"
-                value={formData.dateNaissance}
+                value={formatDateForInput(formData.dateNaissance)}
                 onChange={handleChange}
                 required
               />
