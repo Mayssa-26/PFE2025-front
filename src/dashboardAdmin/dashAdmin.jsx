@@ -4,14 +4,15 @@ import { ShoppingBag, BarChart2, PieChart, TrendingUp } from "lucide-react";
 import { FaSearch, FaArrowRight } from "react-icons/fa";
 import axios from "axios";
 import jwt_decode from "jwt-decode";
+import Chart from "chart.js/auto";
 import Navbar from "./NavBar";
 import Sidebar from "./SideBar";
-
 
 const DashAdmin = () => {
   const navigate = useNavigate();
   const donutRef = useRef(null);
-  
+  const lineChartRef = useRef(null); // Ref for the new line chart
+
   // State management
   const [stats, setStats] = useState({
     vehiculesAvecCapteur: 0,
@@ -28,7 +29,7 @@ const DashAdmin = () => {
   const [offlineCount, setOfflineCount] = useState(0);
   const [adminGroupName, setAdminGroupName] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
+
   const vehiclesPerPage = 5;
   const currentVehicles = vehiclesWithSensors.slice(
     (currentPage - 1) * vehiclesPerPage,
@@ -43,7 +44,12 @@ const DashAdmin = () => {
         vehicle.groupName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Donut chart drawing
+  // Debug stats data
+  useEffect(() => {
+    console.log("Stats data:", stats); // Log stats to check values
+  }, [stats]);
+
+  // Initialize First Donut Chart (all metrics)
   useEffect(() => {
     if (donutRef.current) {
       const ctx = donutRef.current.getContext("2d");
@@ -57,35 +63,182 @@ const DashAdmin = () => {
     const centerX = width / 2;
     const centerY = height / 2;
     const radius = Math.min(width, height) / 2 - 20;
-    
+
     ctx.clearRect(0, 0, width, height);
-    const total = Object.values(stats).reduce((sum, val) => sum + val, 0);
-    
+    const total = Object.values(stats).reduce((sum, val) => sum + (val || 0), 0) || 1;
+
     const data = [
-      { color: "#22c55e", value: stats.vehiculesAvecCapteur / total },
-      { color: "#ef4444", value: stats.vehiculesSansCapteur / total },
-      { color: "#f59e0b", value: stats.chauffeurs / total },
-      { color: "#3b82f6", value: stats.positions / total },
+      {
+        color: "#22c55e",
+        value: total ? (stats.vehiculesAvecCapteur || 0) / total : 0,
+        label: "Capteur",
+      },
+      {
+        color: "#ef4444",
+        value: total ? (stats.vehiculesSansCapteur || 0) / total : 0,
+        label: "Véhicules sans capteur",
+      },
+      {
+        color: "#f59e0b",
+        value: total ? (stats.chauffeurs || 0) / total : 0,
+        label: "Chauffeurs",
+      },
+      {
+        color: "#3b82f6",
+        value: total ? (stats.positions || 0) / total : 0,
+        label: "Positions",
+      },
     ];
 
     let startAngle = -0.25 * 2 * Math.PI;
     data.forEach((segment) => {
-      ctx.beginPath();
-      ctx.arc(
-        centerX,
-        centerY,
-        radius,
-        startAngle,
-        startAngle + segment.value * 2 * Math.PI
-      );
-      ctx.strokeStyle = segment.color;
-      ctx.lineWidth = 20;
-      ctx.stroke();
+      if (segment.value > 0) {
+        ctx.beginPath();
+        ctx.arc(
+          centerX,
+          centerY,
+          radius,
+          startAngle,
+          startAngle + segment.value * 2 * Math.PI
+        );
+        ctx.strokeStyle = segment.color;
+       
+        ctx.stroke();
+      }
+      startAngle += segment.value * 2 * Math.PI;
+    });
+
+    // Add percentage labels
+    startAngle = -0.25 * 2 * Math.PI;
+    data.forEach((segment) => {
+      if (segment.value > 0) {
+        const angle = startAngle + (segment.value * 2 * Math.PI) / 2;
+        const labelX = centerX + (radius + 30) * Math.cos(angle);
+        const labelY = centerY + (radius + 30) * Math.sin(angle);
+        ctx.font = "12px 'Roboto', sans-serif";
+        ctx.fillStyle = segment.color;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`${Math.round(segment.value * 100)}%`, labelX, labelY);
+      }
       startAngle += segment.value * 2 * Math.PI;
     });
   };
 
-  // Data fetching
+  // Initialize Line Chart (vehiculesAvecCapteur and chauffeurs)
+  useEffect(() => {
+    if (lineChartRef.current) {
+      const ctx = lineChartRef.current.getContext("2d");
+      const lineChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: ["Capteur", "Chauffeurs"],
+          datasets: [
+            {
+              label: "Statistiques",
+              data: [stats.vehiculesAvecCapteur || 0, stats.chauffeurs || 0],
+              borderColor: "#16a34a", // Green for the line
+              backgroundColor: "rgba(34, 197, 94, 0.2)", // Light green fill under the line
+              pointBackgroundColor: ["#16a34a", "#d97706"], // Green and yellow points
+              pointBorderColor: ["#16a34a", "#d97706"],
+              pointRadius: 6,
+              pointHoverRadius: 8,
+              fill: true,
+              tension: 0.4, // Smooth curve
+              borderWidth: 3,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: {
+                color: "#1f2937",
+                font: {
+                  family: "'Roboto', sans-serif",
+                  size: 12,
+                },
+              },
+            },
+            title: {
+              display: true,
+              text: " Capteurs vs Chauffeurs",
+              color: "#1f2937",
+              font: {
+                family: "'Roboto', sans-serif",
+                size: 16,
+                weight: "bold",
+              },
+              padding: {
+                bottom: 20,
+              },
+            },
+            tooltip: {
+              backgroundColor: "#ffffff",
+              titleColor: "#1f2937",
+              bodyColor: "#1f2937",
+              borderColor: "#d1d5db",
+              borderWidth: 1,
+              cornerRadius: 8,
+              titleFont: {
+                family: "'Roboto', sans-serif",
+              },
+              bodyFont: {
+                family: "'Roboto', sans-serif",
+              },
+              callbacks: {
+                label: (context) => {
+                  const label = context.label;
+                  const value = context.raw;
+                  return `${label}: ${value}`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                color: "#6b7280",
+                font: {
+                  family: "'Roboto', sans-serif",
+                  size: 12,
+                },
+              },
+              grid: {
+                display: false,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: "#6b7280",
+                font: {
+                  family: "'Roboto', sans-serif",
+                  size: 12,
+                },
+              },
+              grid: {
+                color: "#e5e7eb",
+              },
+            },
+          },
+          animation: {
+            duration: 1000,
+            easing: "easeInOutQuad",
+          },
+        },
+      });
+
+      return () => {
+        lineChart.destroy();
+      };
+    }
+  }, [stats]);
+
+  // Data fetching (unchanged)
   useEffect(() => {
     const fetchData = async () => {
       setLoading((prev) => ({ ...prev, vehicles: true, adminStats: true }));
@@ -102,7 +255,6 @@ const DashAdmin = () => {
         const currentAdminId = decoded.id;
         setIsAuthenticated(true);
 
-        // Fetch admin group
         const adminResponse = await axios.get(
           `/api/vehicules/admin/${currentAdminId}`,
           {
@@ -110,21 +262,19 @@ const DashAdmin = () => {
           }
         );
 
-        const groupData = adminResponse.data?.success 
+        const groupData = adminResponse.data?.success
           ? (adminResponse.data.data[0] || adminResponse.data.data)
           : null;
-          
+
         const groupName = groupData?.nom || groupData?.name || groupData?.groupName;
         if (!groupName) {
           throw new Error(`No group name found for admin ${currentAdminId}`);
         }
         setAdminGroupName(groupName);
 
-        // Fetch vehicles without sensors
         const vehiclesWithoutSensors = groupData?.vehicules || [];
         const vehiculesSansCapteur = vehiclesWithoutSensors.length;
 
-        // Fetch groups from Traccar
         const groupsResponse = await axios.get(
           "https://yepyou.treetronix.com/api/groups",
           {
@@ -143,7 +293,6 @@ const DashAdmin = () => {
           throw new Error(`No group named "${groupName}" found in Traccar`);
         }
 
-        // Fetch drivers
         const driversResponse = await axios.get(
           "https://yepyou.treetronix.com/api/drivers",
           {
@@ -160,7 +309,6 @@ const DashAdmin = () => {
         );
         const chauffeursCount = filteredDrivers.length;
 
-        // Fetch devices
         const devicesResponse = await axios.get(
           "https://yepyou.treetronix.com/api/devices",
           {
@@ -199,13 +347,15 @@ const DashAdmin = () => {
           positions: mappedVehicles.reduce((acc, v) => acc + (v.positions || 0), 0),
         });
 
-        setAdminStats([{
-          adminId: currentAdminId,
-          adminName: `Admin ${currentAdminId}`,
-          vehiculesAvecCapteur,
-          vehiculesSansCapteur,
-          chauffeurs: chauffeursCount,
-        }]);
+        setAdminStats([
+          {
+            adminId: currentAdminId,
+            adminName: `Admin ${currentAdminId}`,
+            vehiculesAvecCapteur,
+            vehiculesSansCapteur,
+            chauffeurs: chauffeursCount,
+          },
+        ]);
 
         if (offlineVehicles.length > 0) {
           const badge = document.querySelector(".notification-badge");
@@ -340,16 +490,23 @@ const DashAdmin = () => {
 
         .charts-container {
           display: grid;
-          grid-template-columns: 1fr;
-          gap: 1.5rem;
-          margin-top: 2rem;
+          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+          gap: 2rem;
+          margin-top: 2.5rem;
+          padding: 0 1rem;
         }
 
         .chart-card {
-          background: var(--card-background);
-          border-radius: 12px;
-          padding: 1.5rem;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          background: var(--card-background, #fff);
+          border-radius: 16px;
+          padding: 2rem;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .chart-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
         }
 
         .donut-container {
@@ -357,29 +514,42 @@ const DashAdmin = () => {
           display: flex;
           justify-content: center;
           align-items: center;
+          height: 260px;
         }
 
         .donut-chart {
           width: 100%;
+          max-width: 280px;
+          height: auto;
+        }
+
+        .line-chart {
+          width: 100%;
           max-width: 300px;
-          height: 250px;
+          height: 260px;
+          margin: 0 auto;
         }
 
         .donut-center {
           position: absolute;
-          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          pointer-events: none;
         }
 
         .donut-label {
           font-size: 0.875rem;
-          color: var(--text-secondary);
+          color: var(--text-secondary, #6b7280);
           font-family: 'Roboto', sans-serif;
+          margin-top: 0.25rem;
         }
 
         .donut-value {
-          font-size: 1.75rem;
+          font-size: 2rem;
           font-weight: 700;
-          color: var(--text-primary);
+          color: var(--text-primary, #111827);
           font-family: 'Roboto', sans-serif;
         }
 
@@ -550,10 +720,10 @@ const DashAdmin = () => {
                 {
                   icon: ShoppingBag,
                   value: stats.vehiculesAvecCapteur,
-                  label: "Véhicules avec capteur",
+                  label: "Capteurs",
                   badge: `+${stats.vehiculesAvecCapteur * 2}%`,
                   color: "green",
-                  badgeColor: "blue"
+                  badgeColor: "blue",
                 },
                 {
                   icon: BarChart2,
@@ -561,7 +731,7 @@ const DashAdmin = () => {
                   label: "Véhicules sans capteur",
                   badge: `+${stats.vehiculesSansCapteur * 3}%`,
                   color: "red",
-                  badgeColor: "yellow"
+                  badgeColor: "yellow",
                 },
                 {
                   icon: PieChart,
@@ -569,16 +739,16 @@ const DashAdmin = () => {
                   label: "Chauffeurs",
                   badge: `+${stats.chauffeurs}%`,
                   color: "yellow",
-                  badgeColor: "green"
+                  badgeColor: "green",
                 },
                 {
                   icon: TrendingUp,
-                  value: "+50",
+                  value: stats.positions,
                   label: "Positions",
                   badge: `+${Math.round(stats.positions / 3)}%`,
                   color: "blue",
-                  badgeColor: "pink"
-                }
+                  badgeColor: "pink",
+                },
               ].map((stat, index) => (
                 <div className="stat-card" key={index}>
                   <div className="stat-header">
@@ -598,14 +768,21 @@ const DashAdmin = () => {
             </div>
 
             <div className="charts-container">
-              <div className="chart-card donut-container">
-                <canvas ref={donutRef} className="donut-chart" />
-                <div className="donut-center">
-                  <div className="donut-label">Total</div>
-                  <div className="donut-value">
-                    {Object.values(stats).reduce((sum, val) => sum + val, 0)}
+              {/* First Donut Chart (all metrics) */}
+              <div className="chart-card">
+                <div className="donut-container">
+                  <canvas ref={donutRef} className="donut-chart" />
+                  <div className="donut-center">
+                    <span className="donut-value">
+                      {Object.values(stats).reduce((sum, val) => sum + (val || 0), 0)}
+                    </span>
+                    <span className="donut-label">Total</span>
                   </div>
                 </div>
+              </div>
+              {/* Line Chart (vehiculesAvecCapteur and chauffeurs) */}
+              <div className="chart-card">
+                <canvas ref={lineChartRef} className="line-chart" />
               </div>
             </div>
 

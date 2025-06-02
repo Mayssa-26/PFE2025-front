@@ -289,17 +289,18 @@ const DashSuperAdmin = () => {
         }
 
         .donut-wrapper {
-          flex: 1;
-          max-width: 300px;
+          flex: 2;
+          max-width: 400px;
           position: relative;
           display: flex;
           justify-content: center;
           align-items: center;
+          padding: 1rem;
         }
 
         .donut-chart {
-          width: 100%;
-          max-width: 250px;
+          width: 500%;
+          max-width: 450px;
           height: 250px;
         }
 
@@ -643,7 +644,7 @@ const DashSuperAdmin = () => {
               </div>
               <div className="additional-stats">
                 <div className="stat-item">
-                  <p className="stat-label">Véhicules Avec Capteurs</p>
+                  <p className="stat-label">Capteurs</p>
                   <h3 className="stat-value">{stats.onlinePercentage}%</h3>
                 </div>
                 <div className="stat-item">
