@@ -9,9 +9,6 @@ const Sidebar = () => {
   const { userName, logout } = useAuth();
   const navigate = useNavigate();
   
-  // Debugging: Check userName value
-  console.log("Sidebar - userName:", userName);
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showVoitureSubMenu, setShowVoitureSubMenu] = useState(false);
   const [showSettingsSubMenu, setShowSettingsSubMenu] = useState(false);
@@ -40,12 +37,11 @@ const Sidebar = () => {
   return (
     <>
       <style>{`
-        
         /* Container principal */
         .dashboard-admin {
           position: relative;
           height: 100vh;
-         font-family: 'Roboto', sans-serif;
+          font-family: 'Roboto', sans-serif;
         }
 
         /* Bouton toggle */
@@ -61,7 +57,7 @@ const Sidebar = () => {
           padding: 8px 10px;
           border-radius: 5px;
           cursor: pointer;
-          display: none; /* caché par défaut sur desktop */
+          display: none;
           font-family: 'Roboto', sans-serif;
         }
 
@@ -75,6 +71,7 @@ const Sidebar = () => {
           top: 0;
           left: 0;
           transition: all 0.3s ease;
+          z-index: 998;
         }
 
         .sidebar.show {
@@ -85,26 +82,129 @@ const Sidebar = () => {
           left: -100%;
         }
 
-        /* Header de la sidebar */
+        /* Header de la sidebar - Style identique au Super Admin */
         .sidebar-header {
           background: linear-gradient(135deg, #1b23444f, #426e912e);
-          padding: 5px 15px;
-          border-radius: 12px 12px 0 0;
+          padding: 20px 15px;
+          border-radius: 0 0 15px 15px;
           text-align: center;
-          box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+          margin-bottom: 20px;
+          position: relative;
+          overflow: hidden;
         }
 
-        .sidebar-title {
-          color: rgb(195, 187, 217);
-          font-size: 24px;
-          font-weight: bold;
-          text-align: center;
-          margin: 0;
-          font-family: 'Roboto', sans-serif;
+        .sidebar-header::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          pointer-events: none;
         }
 
-        .sidebar-title span {
-          color: #fcfbff;
+        .sidebar-header:hover::before {
+          opacity: 1;
+        }
+
+        /* Logo Styles - Identique au Super Admin */
+        .logo-container {
+          position: relative;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 10px 0;
+        }
+
+        .sidebar-logo {
+          width: 160px;
+          height: auto;
+          max-width: 100%;
+          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3)) brightness(1.1);
+          cursor: pointer;
+          position: relative;
+          z-index: 2;
+        }
+
+        .sidebar-logo:hover {
+          transform: scale(1.08) rotate(2deg);
+          filter: drop-shadow(0 8px 20px rgba(255,255,255,0.2)) 
+                  drop-shadow(0 4px 12px rgba(0,0,0,0.4)) 
+                  brightness(1.2) 
+                  contrast(1.1);
+        }
+
+        /* Effet de brillance animé */
+        .logo-shine {
+          position: absolute;
+          top: -100%;
+          left: -100%;
+          width: 300%;
+          height: 300%;
+          background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.3) 50%, transparent 70%);
+          transform: rotate(45deg);
+          transition: all 0.6s ease;
+          pointer-events: none;
+          opacity: 0;
+        }
+
+        .sidebar-logo:hover + .logo-shine {
+          top: -150%;
+          left: -150%;
+          opacity: 1;
+        }
+
+        /* Particules flottantes autour du logo */
+        .logo-particles {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          overflow: hidden;
+        }
+
+        .logo-particles::before,
+        .logo-particles::after {
+          content: '';
+          position: absolute;
+          width: 4px;
+          height: 4px;
+          background: rgba(255,255,255,0.6);
+          border-radius: 50%;
+          opacity: 0;
+          transition: all 0.8s ease;
+        }
+
+        .logo-particles::before {
+          top: 20%;
+          left: 15%;
+          animation: float1 3s ease-in-out infinite;
+        }
+
+        .logo-particles::after {
+          top: 70%;
+          right: 20%;
+          animation: float2 3s ease-in-out infinite 1.5s;
+        }
+
+        .sidebar-header:hover .logo-particles::before,
+        .sidebar-header:hover .logo-particles::after {
+          opacity: 1;
+        }
+
+        @keyframes float1 {
+          0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.6; }
+          50% { transform: translateY(-10px) translateX(5px); opacity: 1; }
+        }
+
+        @keyframes float2 {
+          0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.6; }
+          50% { transform: translateY(-8px) translateX(-3px); opacity: 1; }
         }
 
         /* Contenu de la sidebar */
@@ -144,7 +244,6 @@ const Sidebar = () => {
           background-color: #f3f4f6;
           color: rgb(166, 160, 187);
           font-weight: bold;
-          font-family: 'Roboto', sans-serif;
         }
 
         .nav-item > a,
@@ -166,7 +265,6 @@ const Sidebar = () => {
           margin-right: 10px;
           font-size: 18px;
           color: #f1f1f1;
-          font-family: 'Roboto', sans-serif;
         }
 
         /* Couleur spéciale pour les liens */
@@ -206,24 +304,6 @@ const Sidebar = () => {
           background-color: rgba(255, 255, 255, 0.1);
         }
 
-        /* Sous-sous-menus (Sécurité) */
-        .sub-menu ul {
-          margin: 4px 0 0 0;
-          padding: 0;
-          list-style: none;
-          padding-left: 20px;
-        }
-
-        .sub-menu ul li {
-          padding: 5px 0;
-        }
-
-        .sub-menu ul li a {
-          color: rgb(190, 178, 224);
-          font-size: 14px;
-          font-family: 'Roboto', sans-serif;
-        }
-
         /* Bouton de déconnexion */
         .logout-button {
           width: 100%;
@@ -237,9 +317,8 @@ const Sidebar = () => {
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          margin-top: 250px;
+          margin-top: 150px;
           transition: all 0.3s ease;
-          font-family: 'Roboto', sans-serif;
         }
 
         .logout-button:hover {
@@ -282,7 +361,6 @@ const Sidebar = () => {
           font-weight: bold;
           color: #333;
           margin: 0 0 16px 0;
-          font-family: 'Roboto', sans-serif;
         }
 
         .logout-modal-message {
@@ -356,66 +434,38 @@ const Sidebar = () => {
           }
 
           .sidebar {
-            position: fixed;
-            top: 0;
-            left: -100%;
-            height: 100vh;
-            width: 250px;
-            transition: left 0.3s ease;
-            z-index: 998;
-          }
-
-          .sidebar.show {
-            left: 0;
-          }
-
-          .sidebar.hide {
-            left: -100%;
-          }
-
-          .logout-button {
-            margin-top: 150px;
-            background-color: #2f2f5e;
-            padding: 10px;
-          }
-        }
-
-        @media (max-width: 992px) {
-          .dashboard-admin {
-            padding-left: 0;
-          }
-          
-          .sidebar {
             transform: translateX(-100%);
-            transition: transform 0.3s ease;
-            z-index: 1000;
           }
-          
+
           .sidebar.show {
             transform: translateX(0);
           }
-          
-          .toggle-btn {
-            display: block;
+
+          .sidebar.hide {
+            transform: translateX(-100%);
+          }
+
+          .sidebar-logo {
+            width: 120px;
+          }
+
+          .sidebar-header {
+            padding: 15px 10px;
+          }
+
+          .logout-button {
+            margin-top: 100px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .sidebar-logo {
+            width: 100px;
           }
           
-          .sidebar.show + .sidebar-overlay {
-            display: block;
+          .sidebar-header {
+            padding: 12px 8px;
           }
-        }
-
-        /* Mode sombre */
-        .dark-mode {
-          background-color: #1e1e1e;
-          color: white;
-        }
-
-        .dark-mode a {
-          color: #b3b3b3;
-        }
-
-        .dark-mode .nav-item {
-          border-color: #333;
         }
       `}</style>
 
@@ -426,7 +476,15 @@ const Sidebar = () => {
         
         <div className={`sidebar ${isSidebarOpen ? "show" : "hide"}`}>
           <div className="sidebar-header">
-            <h3 className="sidebar-title">{userName ? `${userName}` : "Vue de l'utilisateur"} <span>View</span></h3>
+            <div className="logo-container">
+              <img 
+                src="/logo3s.png" 
+                alt="Logo 3S" 
+                className="sidebar-logo" 
+              />
+              <div className="logo-shine"></div>
+              <div className="logo-particles"></div>
+            </div>
           </div>
 
           <div className="sidebar-content">
@@ -434,14 +492,14 @@ const Sidebar = () => {
               <div className="nav-item">
                 <Link to="/drivers" className="color">
                   <FaHandSpock className="nav-icon" />
-                  ----Chauffeurs
+                  Chauffeurs
                 </Link>
               </div>
 
               <div className="nav-item" onClick={toggleVoitureSubMenu}>
                 <div>
                   <MdDriveEta className="nav-icon" />
-                  ----Véhicules
+                  Véhicules
                 </div>
                 <ul className={`sub-menu ${showVoitureSubMenu ? "open" : ""}`}>
                   <li><Link to="/VehiculesAvecCapteur">Véhicules avec capteur</Link></li>
@@ -452,14 +510,14 @@ const Sidebar = () => {
               <div className="nav-item">
                 <Link to="/map" className="color">
                   <FaMapMarked className="nav-icon" />
-                  ----Carte
+                  Carte
                 </Link>
               </div>
 
               <div className="nav-item" onClick={toggleSettingsSubMenu}>
                 <div>
                   <FaCog className="nav-icon" />
-                  ----Paramètres
+                  Paramètres
                 </div>
                 <ul className={`sub-menu ${showSettingsSubMenu ? "open" : ""}`}>
                   <li><Link to="/profil">Profil administrateur</Link></li>

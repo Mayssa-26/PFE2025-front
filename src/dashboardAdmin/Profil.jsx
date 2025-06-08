@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import jwt_decode from "jwt-decode";
 import { useNavigate, useLocation } from "react-router-dom";
-import Sidebar from "./SideBar";
-import Navbar from "./NavBar";
+import Sidebar from  "./Sidebar";
+import Navbar from  "./Navbar";
 import Register from "../register/Register";
 
 const UserProfile = () => {
@@ -234,6 +234,7 @@ const UserProfile = () => {
             max-width: 1200px;
             margin: 0 auto;
             animation: fadeInUp 0.6s ease-out;
+            margin-top: 2rem;
           }
 
           /* En-tête */

@@ -679,8 +679,8 @@ const VehCapSupAdmin = ({ statusFilter, title = "Liste des Véhicules", descript
           }
 
           .status-badge.online {
-            background: rgba(76, 201, 240, 0.2);
-            color: var(--success-color);
+           background: rgba(38, 122, 73, 0.89);
+            color: white;
           }
 
           .status-badge.offline {
@@ -810,23 +810,32 @@ const VehCapSupAdmin = ({ statusFilter, title = "Liste des Véhicules", descript
             padding: 1rem;
           }
 
-          /* Header */
-          .header {
-            margin-bottom: 2rem;
-            animation: slideIn 0.5s ease;
-          }
+          .container2 {
+          max-width: 1200px;
+          margin: 0 auto;
+          margin-top: 2rem;
+        }
 
-          .header h2 {
-            font-size: 1.75rem;
-            font-weight: 600;
-            color: var(--text-color);
-          }
+        .header {
+          background: var(--card-background);
+          padding: 1.5rem;
+          border-radius: var(--border-radius);
+          box-shadow: var(--shadow-sm);
+          margin-bottom: 2rem;
+        }
 
-          .header p {
-            font-size: 0.875rem;
-            color: var(--text-light);
-            margin-top: 0.5rem;
-          }
+        .header h2 {
+          font-size: 1.75rem;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .header p {
+          font-size: 0.875rem;
+          color: var(--text-secondary);
+          margin: 0.5rem 0 0;
+        }
 
           /* Filter Bar */
           .filter-bar {
@@ -1069,15 +1078,16 @@ const VehCapSupAdmin = ({ statusFilter, title = "Liste des Véhicules", descript
           <div className="header">
             <h2>{title}</h2>
             <p>{description}</p>
-          </div>
           
+          <br></br>
           <div className="filter-bar">
+            <br />
             <button
               className="btn-primary"
               onClick={() => setShowAddVehicleModal(true)}
               disabled={loading.vehicles}
             >
-              Ajouter un véhicule
+              Ajouter
             </button>
             <label htmlFor="statusSelect">Filtrer par statut :</label>
             <select
@@ -1091,7 +1101,7 @@ const VehCapSupAdmin = ({ statusFilter, title = "Liste des Véhicules", descript
               <option value="offline">Offline</option>
             </select>
           </div>
-
+</div>
           <div className="search-container">
             <FaSearch className="search-icon" />
             <input
@@ -1157,15 +1167,7 @@ const VehCapSupAdmin = ({ statusFilter, title = "Liste des Véhicules", descript
                           >
                             🗑️
                           </button>
-                          <button
-                            className="action-btn map"
-                            onClick={() => setSelectedVehicle(vehicle)}
-                            disabled={loading.positions}
-                            title="Voir le trajet"
-                            aria-label="Trajet"
-                          >
-                            🗺️
-                          </button>
+                          
                         </div>
                       </td>
                     </tr>

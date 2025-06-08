@@ -9,45 +9,51 @@ const Login = () => {
   const [message, setMessage] = useState("");
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    try {
-      const response = await fetch("http://localhost:8000/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
+  try {
+    const response = await fetch("http://localhost:8000/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: formData.email,
+        password: formData.password,
+      }),
+    });
 
-      // Log de la réponse serveur
-      console.log('Réponse serveur:', response);
+    // Log de la réponse serveur
+    console.log('Réponse serveur:', response);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur de serveur : ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      try {
+        const errorData = JSON.parse(errorText);
+        setMessage(errorData.message || "Une erreur est survenue");
+      } catch (parseError) {
+        setMessage("Une erreur est survenue");
       }
-
-      const data = await response.json();
-      console.log('Données reçues:', data); // Log des données reçues du back-end
-
-      login(data.token, data.role, data.name); // Store token and role
-
-      // Redirection en fonction du rôle
-      if (data.role === "Admin") {
-        navigate("/dashAdmin");
-      } else if (data.role === "superAdmin") {
-        navigate("/dashboardSuperAdmin");
-      } 
-    } catch (error) {
-      if (error.message.includes("NetworkError")) {
-        setMessage("Erreur : Impossible de se connecter au serveur.");
-      } else {
-        setMessage(`Erreur : ${error.message}`);
-      }
+      return; // Exit early to avoid further processing
     }
-  };
+
+    const data = await response.json();
+    console.log('Données reçues:', data); // Log des données reçues du back-end
+
+    login(data.token, data.role, data.name); // Store token and role
+
+    // Redirection en fonction du rôle
+    if (data.role === "Admin") {
+      navigate("/dashAdmin");
+    } else if (data.role === "superAdmin") {
+      navigate("/dashboardSuperAdmin");
+    } 
+  } catch (error) {
+    if (error.message.includes("NetworkError")) {
+      setMessage("Erreur : Impossible de se connecter au serveur.");
+    } else {
+      setMessage("Une erreur est survenue");
+    }
+  }
+};
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -183,9 +189,23 @@ const Login = () => {
           color: #4b13b3;
         }
         
+        /* Style pour le message d'erreur */
+        .error-message {
+          color: #d32f2f;
+          background-color: #fce4e4;
+          padding: 10px;
+          border-radius: 8px;
+          margin-top: 15px;
+          font-size: 14px;
+          font-weight: 500;
+          text-align: center;
+          border: 1px solid #ef5350;
+          transition: all 0.3s ease-in-out;
+        }
+        
         /* Responsive */
         @media screen and (max-width: 768px) {
-          .login-conteneur {
+          .login-conteneur1 {
             flex-direction: column;
             height: auto;
             padding: 10px;
@@ -220,6 +240,11 @@ const Login = () => {
           .login-btn {
             padding: 10px;
           }
+          
+          .error-message {
+            font-size: 13px;
+            padding: 8px;
+          }
         }
       `}</style>
 
@@ -253,7 +278,7 @@ const Login = () => {
               Se connecter
             </button>
           </form>
-          {message && <p>{message}</p>}
+          {message && <p className="error-message">{message}</p>}
 
           <p className="login-already-member">
             Vous n'avez pas de compte ?

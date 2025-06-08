@@ -5,9 +5,8 @@ import { FaSearch, FaArrowRight } from "react-icons/fa";
 import axios from "axios";
 import jwt_decode from "jwt-decode";
 import Chart from "chart.js/auto";
-import Navbar from "./NavBar";
-import Sidebar from "./SideBar";
-
+import Navbar from "./Navbar";
+import Sidebar from "./Sidebar";
 const DashAdmin = () => {
   const navigate = useNavigate();
   const donutRef = useRef(null);
@@ -411,6 +410,7 @@ const DashAdmin = () => {
           max-width: 1500px;
           margin: 0 auto;
           padding: 2rem;
+          margin-top: 2rem;
         }
 
         .stats-cards {
@@ -593,7 +593,7 @@ const DashAdmin = () => {
         }
 
         .vehicles-table thead {
-          background: linear-gradient(90deg, #6b7280, #4b5563);
+          background: linear-gradient(90deg,rgb(135, 143, 157),rgb(99, 118, 145));
           color: white;
         }
 
@@ -708,6 +708,71 @@ const DashAdmin = () => {
             max-width: 100%;
           }
         }
+          /* Logo Styles - Matching Dashboard Theme */
+.sidebar-header {
+  padding: 1.5rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.logo-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 180px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.company-logo {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  transition: transform 0.3s ease, filter 0.3s ease;
+  position: relative;
+  z-index: 2;
+}
+
+.logo-highlight {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  background: radial-gradient(circle at center, 
+    rgba(66, 110, 145, 0.3) 0%, 
+    rgba(30, 29, 84, 0) 70%);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+}
+
+.logo-wrapper:hover .company-logo {
+  transform: scale(1.05);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+.logo-wrapper:hover .logo-highlight {
+  opacity: 1;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .sidebar-header {
+    padding: 1rem;
+  }
+  
+  .logo-wrapper {
+    max-width: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-wrapper {
+    max-width: 120px;
+  }
+}
       `}</style>
 
       <div className="dashboard-admin">
@@ -720,7 +785,7 @@ const DashAdmin = () => {
                 {
                   icon: ShoppingBag,
                   value: stats.vehiculesAvecCapteur,
-                  label: "Capteurs",
+                  label: "Capteur",
                   badge: `+${stats.vehiculesAvecCapteur * 2}%`,
                   color: "green",
                   badgeColor: "blue",
@@ -855,6 +920,7 @@ const DashAdmin = () => {
                     ))}
                   </tbody>
                 </table>
+                <br />
                 <button
                   className="see-more-btn"
                   onClick={() => navigate("/VehiculesAvecCapteurSA")}

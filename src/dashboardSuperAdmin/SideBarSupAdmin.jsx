@@ -71,6 +71,34 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
           left: 0;
           transition: all 0.3s ease;
         }
+          .sidebar {
+  width: 250px;
+  height: 100vh; /* S'assurer que la hauteur est limitée */
+  background-color: #1e1d54;
+  padding-top: 20px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  transition: all 0.3s ease;
+  overflow-y: auto; /* ✅ active le scroll vertical */
+  scrollbar-width: thin;        /* Firefox */
+  scrollbar-color: #999 #1e1d54; /* Firefox */
+}
+
+/* Optionnel : styliser la scrollbar pour Chrome */
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: #1e1d54;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 4px;
+}
+
 
         .sidebar.show {
           left: 0;
@@ -83,23 +111,126 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
         /* Header de la sidebar */
         .sidebar-header {
           background: linear-gradient(135deg, #1b23444f, #426e912e);
-          padding: 5px 15px;
-          border-radius: 12px 12px 0 0;
+          padding: 20px 15px;
+          border-radius: 0 0 15px 15px;
           text-align: center;
-          box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+          margin-bottom: 20px;
+          position: relative;
+          overflow: hidden;
         }
 
-        .sidebar-title {
-          color: rgb(195, 187, 217);
-          font-size: 24px;
-          font-weight: bold;
-          text-align: center;
-          margin: 0;
-          font-family: 'Roboto', sans-serif;
+        .sidebar-header::before {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+          opacity: 0;
+          transition: opacity 0.3s ease;
+          pointer-events: none;
         }
 
-        .sidebar-title span {
-          color: #fcfbff;
+        .sidebar-header:hover::before {
+          opacity: 1;
+        }
+
+        /* Logo Styles */
+        .logo-container {
+          position: relative;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 10px 0;
+        }
+
+        .sidebar-logo {
+          width: 160px;
+          height: auto;
+          max-width: 100%;
+          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3)) brightness(1.1);
+          cursor: pointer;
+          position: relative;
+          z-index: 2;
+        }
+
+        .sidebar-logo:hover {
+          transform: scale(1.08) rotate(2deg);
+          filter: drop-shadow(0 8px 20px rgba(255,255,255,0.2)) 
+                  drop-shadow(0 4px 12px rgba(0,0,0,0.4)) 
+                  brightness(1.2) 
+                  contrast(1.1);
+        }
+
+        /* Effet de brillance animé */
+        .logo-shine {
+          position: absolute;
+          top: -100%;
+          left: -100%;
+          width: 300%;
+          height: 300%;
+          background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.3) 50%, transparent 70%);
+          transform: rotate(45deg);
+          transition: all 0.6s ease;
+          pointer-events: none;
+          opacity: 0;
+        }
+
+        .sidebar-logo:hover + .logo-shine {
+          top: -150%;
+          left: -150%;
+          opacity: 1;
+        }
+
+        /* Particules flottantes autour du logo */
+        .logo-particles {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          overflow: hidden;
+        }
+
+        .logo-particles::before,
+        .logo-particles::after {
+          content: '';
+          position: absolute;
+          width: 4px;
+          height: 4px;
+          background: rgba(255,255,255,0.6);
+          border-radius: 50%;
+          opacity: 0;
+          transition: all 0.8s ease;
+        }
+
+        .logo-particles::before {
+          top: 20%;
+          left: 15%;
+          animation: float1 3s ease-in-out infinite;
+        }
+
+        .logo-particles::after {
+          top: 70%;
+          right: 20%;
+          animation: float2 3s ease-in-out infinite 1.5s;
+        }
+
+        .sidebar-header:hover .logo-particles::before,
+        .sidebar-header:hover .logo-particles::after {
+          opacity: 1;
+        }
+
+        @keyframes float1 {
+          0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.6; }
+          50% { transform: translateY(-10px) translateX(5px); opacity: 1; }
+        }
+
+        @keyframes float2 {
+          0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.6; }
+          50% { transform: translateY(-8px) translateX(-3px); opacity: 1; }
         }
 
         /* Contenu de la sidebar */
@@ -232,7 +363,7 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          margin-top: 100px;
+          margin-top: 20px;
           transition: all 0.3s ease;
           font-family: 'Roboto', sans-serif;
         }
@@ -373,6 +504,14 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
             background-color: #2f2f5e;
             padding: 10px;
           }
+
+          .sidebar-logo {
+            width: 120px;
+          }
+
+          .sidebar-header {
+            padding: 15px 10px;
+          }
         }
 
         @media (max-width: 992px) {
@@ -399,6 +538,16 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
           }
         }
 
+        @media (max-width: 480px) {
+          .sidebar-logo {
+            width: 100px;
+          }
+          
+          .sidebar-header {
+            padding: 12px 8px;
+          }
+        }
+
         /* Mode sombre */
         .dark-mode {
           background-color: #1e1e1e;
@@ -415,11 +564,14 @@ const SidebarSupAdmin = ({ isSidebarOpen, toggleSidebar }) => {
       `}</style>
     <div className={`dashboard-admin`}>
       <div className={`sidebar ${isSidebarOpen ? 'show' : ''}`}>
-        <div className="sidebar-header">
-          <h3 className="sidebar-title">
-            {userName ? `${userName}` : 'Vue de l\'utilisateur'} <span>View</span>
-          </h3>
-        </div>
+          <div className="sidebar-header">
+            <div className="logo-container">
+              <img src="../public/logo3s.png" alt="Logo" className="sidebar-logo" />
+              <div className="logo-shine"></div>
+              <div className="logo-particles"></div>
+            </div>
+          </div>
+       
 
         <div className="sidebar-content">
           <nav className="sidebar-nav">

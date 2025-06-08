@@ -1,4 +1,3 @@
-
 import { useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import { FiSearch, FiAlertCircle, FiX } from "react-icons/fi";
@@ -12,7 +11,6 @@ import NavbarSuperAdmin from "./NavBarSupAdmin";
 const API_BASE_URL = "http://localhost:8000/api";
 const TRACCAR_API_URL = "https://yepyou.treetronix.com/api";
 
-// AddGroup Component
 function AddGroup({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({ nom: "", admin: "" });
   const [isLoading, setIsLoading] = useState(false);
@@ -145,11 +143,9 @@ export default function GroupeTable() {
     _id: null,
     nom: "",
     admin: "",
-    nombreVehiculesFonctionnels: 0,
-    nombreVehiculesAccidentes: 0,
-    nombreVehiculesStock: 0,
-    nombreVehiculesReparation: 0,
     nombreTotalVehicules: 0,
+    nombreVehiculesAvecCapteurs: 0,
+    nombreVehiculesSansCapteurs: 0,
   });
   const [showEditForm, setShowEditForm] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -168,21 +164,66 @@ export default function GroupeTable() {
   const fetchGroupesWithStats = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/groupes/getGroupesWithVehiculesStats`, {
+
+      // Récupérer les groupes depuis votre API avec les véhicules sans capteurs
+      const groupesResponse = await axios.get(`${API_BASE_URL}/groupes/getGroupesWithVehiculesStats`, {
         params: { archived: false },
       });
 
-      const formattedGroupes = response.data.data.map((groupe) => ({
-        _id: groupe._id,
-        nom: groupe.nomGroupe,
-        admin: groupe.admin || "",
-        nombreTotalVehicules: groupe.totalVehicules,
-        nombreVehiculesStock: groupe.vehiculesEnStock,
-        nombreVehiculesFonctionnels: groupe.etatsCount?.Fonctionnel || 0,
-        nombreVehiculesAccidentes: groupe.etatsCount?.Accidenté || 0,
-        nombreVehiculesReparation: groupe.etatsCount?.["En réparation"] || 0,
-        vehicules: groupe.vehicules,
-      }));
+      // Récupérer les dispositifs depuis Traccar (véhicules avec capteurs)
+      const traccarDevicesResponse = await axios.get(`${TRACCAR_API_URL}/devices`, {
+        headers: {
+          Authorization: "Basic " + btoa("admin:admin"),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+
+      // Récupérer les groupes Traccar pour mapper les noms
+      const traccarGroupsResponse = await axios.get(`${TRACCAR_API_URL}/groups`, {
+        headers: {
+          Authorization: "Basic " + btoa("admin:admin"),
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      });
+
+      // Créer une map pour associer les IDs Traccar aux noms de groupes
+      const traccarGroupMap = traccarGroupsResponse.data.reduce((map, group) => {
+        map[group.id] = group.name;
+        return map;
+      }, {});
+
+      // Fusionner les données des deux sources
+      const formattedGroupes = groupesResponse.data.data.map((groupe) => {
+        // Trouver le nom du groupe dans Traccar
+        const traccarGroupId = Object.keys(traccarGroupMap).find(
+          (key) => traccarGroupMap[key] === groupe.nomGroupe
+        );
+
+        // Filtrer les dispositifs Traccar pour ce groupe (véhicules avec capteurs)
+        const groupDevices = traccarDevicesResponse.data.filter(
+          (device) => device.groupId === parseInt(traccarGroupId)
+        );
+
+        // Véhicules sans capteurs depuis MongoDB
+        const nombreVehiculesSansCapteurs = groupe.vehicules.filter(
+          (vehicule) => !vehicule.hasCapteur
+        ).length;
+
+        // Véhicules avec capteurs depuis Traccar
+        const nombreVehiculesAvecCapteurs = groupDevices.length;
+
+        return {
+          _id: groupe._id,
+          nom: groupe.nomGroupe,
+          admin: groupe.admin || "",
+          nombreTotalVehicules: nombreVehiculesAvecCapteurs + nombreVehiculesSansCapteurs,
+          nombreVehiculesAvecCapteurs,
+          nombreVehiculesSansCapteurs,
+          vehicules: groupe.vehicules,
+        };
+      });
 
       setGroupes(formattedGroupes);
     } catch (error) {
@@ -236,11 +277,9 @@ export default function GroupeTable() {
       _id: groupe._id,
       nom: groupe.nom,
       admin: groupe.admin || "",
-      nombreVehiculesFonctionnels: groupe.nombreVehiculesFonctionnels,
-      nombreVehiculesAccidentes: groupe.nombreVehiculesAccidentes,
-      nombreVehiculesStock: groupe.nombreVehiculesStock,
-      nombreVehiculesReparation: groupe.nombreVehiculesReparation,
       nombreTotalVehicules: groupe.nombreTotalVehicules,
+      nombreVehiculesAvecCapteurs: groupe.nombreVehiculesAvecCapteurs,
+      nombreVehiculesSansCapteurs: groupe.nombreVehiculesSansCapteurs,
     });
     setShowEditForm(true);
   };
@@ -336,8 +375,8 @@ export default function GroupeTable() {
   };
 
   return (
-    <div className={`dashboard-admin ${showEditForm || showAddForm || showArchiveModal ? "blurred" : ""}`}>
-      <style>
+    <>
+       <style>
         {`
           :root {
             --primary-color: #0d174a;
@@ -399,7 +438,7 @@ export default function GroupeTable() {
             z-index: 1000;
             backdrop-filter: blur(6px);
             animation: fadeIn 0.3s ease;
-            pointer-events: auto; /* Ensure popup is interactive */
+            pointer-events: auto;
           }
 
           .popup-container {
@@ -412,14 +451,14 @@ export default function GroupeTable() {
             animation: modalAppear 0.4s ease forwards;
             position: relative;
             z-index: 1001;
-            pointer-events: auto; /* Ensure container is interactive */
+            pointer-events: auto;
           }
 
           .toggle-btn {
             position: fixed;
             top: 1rem;
             left: 1rem;
-            z-index: 1002; /* Above popup */
+            z-index: 1002;
             background: var(--primary-color);
             color: white;
             border: none;
@@ -911,11 +950,11 @@ export default function GroupeTable() {
 
             .form-actions {
               flex-direction: column;
-              gap: 0.75rem;
+              gap: 1rem;
             }
 
             .group-btn {
-              width: 100%; /* Fixed invalid 'reck' property */
+              width: 0.875rem;
             }
           }
 
@@ -940,7 +979,7 @@ export default function GroupeTable() {
 
             .container2 {
               background: var(--bg-color);
-              box-shadow: var(--shadow-md);
+              box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             }
 
             .vehicles-table th {
@@ -950,13 +989,18 @@ export default function GroupeTable() {
 
             .vehicles-table td {
               color: var(--text-light);
+              border-bottom: 1px solid var(--bg-dark);
             }
 
-            .vehicles-table tr:hover td {
+            .vehicles-table tr:hover {
+              background: var(--text-dark);
+            }
+
+            .search-input {
               background: var(--bg-dark);
+              color: var(--text-color);
             }
 
-            .search-input,
             .group-input-group input,
             .group-input-group select {
               background: var(--bg-dark);
@@ -972,6 +1016,14 @@ export default function GroupeTable() {
               background: var(--primary-color);
             }
           }
+        `}
+      </style>
+      
+    <div className={`dashboard-admin ${showEditForm || showAddForm || showArchiveModal ? "blurred" : ""}`}>
+      <style>
+        {`
+          /* Styles CSS inchangés */
+          /* ... (conservez tous les styles CSS existants) ... */
         `}
       </style>
       <button className="toggle-btn" onClick={toggleSidebar}>
@@ -1092,18 +1144,16 @@ export default function GroupeTable() {
             <thead>
               <tr>
                 <th scope="col">Nom du groupe</th>
-                <th scope="col">Véhicules fonctionnels</th>
-                <th scope="col">Véhicules accidentés</th>
-                <th scope="col">Véhicules en stock</th>
-                <th scope="col">Véhicules en réparation</th>
-                <th scope="col">Total véhicules</th>
+                <th scope="col">Total Véhicules</th>
+                <th scope="col">Avec capteurs</th>
+                <th scope="col">Sans capteurs</th>
                 <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: "center" }}>
+                  <td colSpan="5" style={{ textAlign: "center" }}>
                     <div className="spinner-btn"></div> Chargement des données...
                   </td>
                 </tr>
@@ -1111,11 +1161,9 @@ export default function GroupeTable() {
                 currentGroupes.map((groupe) => (
                   <tr key={groupe._id}>
                     <td>{groupe.nom}</td>
-                    <td>{groupe.nombreVehiculesFonctionnels}</td>
-                    <td>{groupe.nombreVehiculesAccidentes}</td>
-                    <td>{groupe.nombreVehiculesStock}</td>
-                    <td>{groupe.nombreVehiculesReparation}</td>
                     <td>{groupe.nombreTotalVehicules}</td>
+                    <td>{groupe.nombreVehiculesAvecCapteurs}</td>
+                    <td>{groupe.nombreVehiculesSansCapteurs}</td>
                     <td>
                       <div className="action-buttons">
                         <button
@@ -1139,7 +1187,7 @@ export default function GroupeTable() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: "center" }}>
+                  <td colSpan="5" style={{ textAlign: "center" }}>
                     <div className="empty-groupes">
                       <FiAlertCircle />
                       <p>Aucun groupe trouvé</p>
@@ -1219,5 +1267,6 @@ export default function GroupeTable() {
         </div>
       </div>
     </div>
+    </>
   );
 }

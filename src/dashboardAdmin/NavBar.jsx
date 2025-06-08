@@ -21,21 +21,34 @@ const Navbar = ({ offlineCount = 0 }) => {
     };
 
     return (
-        <>
+       <>
             <style>
                 {`
                     .navbar {
+                        position: fixed;
+                        top: 0;
+                        left: 250px;
+                        right: 0;
                         display: flex;
                         justify-content: space-between;
                         align-items: center;
                         padding: 16px 40px;
-                        background: #ffffff;
+                        background: rgba(255, 255, 255, 0.95);
+                        backdrop-filter: blur(10px);
+                        -webkit-backdrop-filter: blur(10px);
                         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-                        position: sticky;
-                        top: 0;
                         z-index: 1000;
-                        border-bottom: 1px solid #e5e7eb;
+                        border-bottom: 1px solid rgba(229, 231, 235, 0.8);
                         min-height: 70px;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    }
+
+                    .navbar.scrolled {
+                        padding: 12px 40px;
+                        min-height: 60px;
+                        background: rgba(255, 255, 255, 0.98);
+                        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+                        border-bottom: 1px solid rgba(229, 231, 235, 0.9);
                     }
 
                     .navbar-title {
@@ -43,19 +56,35 @@ const Navbar = ({ offlineCount = 0 }) => {
                         font-weight: 600;
                         color: #1f2937;
                         text-decoration: none;
-                        transition: color 0.2s ease;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                         letter-spacing: -0.025em;
                         font-family: 'Roboto', sans-serif;
                     }
 
+                    .navbar.scrolled .navbar-title {
+                        font-size: 22px;
+                        transform: scale(0.95);
+                    }
+
                     .navbar-title:hover {
                         color: rgb(10, 31, 64);
+                        transform: translateY(-1px);
+                    }
+
+                    .navbar.scrolled .navbar-title:hover {
+                        transform: scale(0.95) translateY(-1px);
                     }
 
                     .navbar-right-section {
                         display: flex;
                         align-items: center;
                         gap: 20px;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    }
+
+                    .navbar.scrolled .navbar-right-section {
+                        gap: 16px;
+                        transform: scale(0.95);
                     }
 
                     .notification-icon-wrapper {
@@ -67,21 +96,30 @@ const Navbar = ({ offlineCount = 0 }) => {
                         cursor: pointer;
                         padding: 10px;
                         border-radius: 8px;
-                        background: #f9fafb;
+                        background: rgba(249, 250, 251, 0.8);
                         color: #6b7280;
-                        transition: all 0.2s ease;
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                         display: flex;
                         align-items: center;
                         justify-content: center;
-                        border: 1px solid #e5e7eb;
+                        border: 1px solid rgba(229, 231, 235, 0.8);
                         width: 44px;
                         height: 44px;
                     }
 
+                    .navbar.scrolled .notification-icon {
+                        width: 40px;
+                        height: 40px;
+                        padding: 8px;
+                        background: rgba(249, 250, 251, 0.9);
+                    }
+
                     .notification-icon:hover {
-                        background: #f3f4f6;
+                        background: rgba(243, 244, 246, 0.9);
                         color: #374151;
-                        border-color: #d1d5db;
+                        border-color: rgba(209, 213, 219, 0.9);
+                        transform: translateY(-2px);
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
                     }
 
                     .notification-badge {
@@ -96,18 +134,27 @@ const Navbar = ({ offlineCount = 0 }) => {
                         border-radius: 10px;
                         min-width: 18px;
                         text-align: center;
-                        box-shadow: 0 1px 4px rgba(220, 38, 38, 0.3);
+                        box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4);
                         border: 2px solid white;
                         line-height: 1.2;
                         font-family: 'Roboto', sans-serif;
+                        animation: pulse 2s infinite;
+                    }
+
+                    .navbar.scrolled .notification-badge {
+                        font-size: 10px;
+                        padding: 1px 5px;
+                        min-width: 16px;
                     }
 
                     @keyframes pulse {
                         0%, 100% {
                             opacity: 1;
+                            transform: scale(1);
                         }
                         50% {
                             opacity: 0.8;
+                            transform: scale(1.05);
                         }
                     }
 
@@ -156,16 +203,30 @@ const Navbar = ({ offlineCount = 0 }) => {
                         font-size: 15px;
                         padding: 10px 20px;
                         border-radius: 6px;
-                        background: #f9fafb;
-                        border: 1px solid #e5e7eb;
-                        transition: all 0.2s ease;
+                        background: rgba(249, 250, 251, 0.8);
+                        border: 1px solid rgba(229, 231, 235, 0.8);
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                         font-family: 'Roboto', sans-serif;
+                    }
+
+                    .navbar.scrolled .profile-button {
+                        font-size: 14px;
+                        padding: 8px 16px;
+                        background: rgba(249, 250, 251, 0.9);
                     }
 
                     .profile-button:hover {
                         background: rgb(15, 16, 71);
                         color: white;
                         border-color: rgb(17, 12, 54);
+                        transform: translateY(-2px);
+                        box-shadow: 0 4px 12px rgba(15, 16, 71, 0.3);
+                    }
+
+                    /* Contenu décalé pour compenser la navbar fixe */
+                    .content-spacer {
+                        height: 70px;
+                        width: 100%;
                     }
 
                     /* Responsive Design */
@@ -173,32 +234,43 @@ const Navbar = ({ offlineCount = 0 }) => {
                         .navbar {
                             padding: 16px 30px;
                         }
+                        .navbar.scrolled {
+                            padding: 12px 30px;
+                        }
                     }
 
                     @media (max-width: 768px) {
                         .navbar {
                             padding: 12px 20px;
                         }
+                        .navbar.scrolled {
+                            padding: 10px 20px;
+                        }
 
                         .navbar-title {
                             font-size: 22px;
-                            font-family: 'Roboto', sans-serif;
+                        }
+
+                        .navbar.scrolled .navbar-title {
+                            font-size: 20px;
                         }
 
                         .navbar-right-section {
                             gap: 15px;
                         }
 
+                        .navbar.scrolled .navbar-right-section {
+                            gap: 12px;
+                        }
+
                         .profile-button {
                             font-size: 14px;
                             padding: 8px 16px;
-                            font-family: 'Roboto', sans-serif;
                         }
 
-                        .notification-tooltip {
-                            right: -10px;
-                            font-size: 12px;
-                            font-family: 'Roboto', sans-serif;
+                        .navbar.scrolled .profile-button {
+                            font-size: 13px;
+                            padding: 6px 12px;
                         }
                     }
 
@@ -206,14 +278,16 @@ const Navbar = ({ offlineCount = 0 }) => {
                         .navbar {
                             padding: 12px 16px;
                         }
+                        .navbar.scrolled {
+                            padding: 8px 16px;
+                        }
 
                         .navbar-title {
                             font-size: 20px;
-                            font-family: 'Roboto', sans-serif;
                         }
 
-                        .navbar-right-section {
-                            gap: 12px;
+                        .navbar.scrolled .navbar-title {
+                            font-size: 18px;
                         }
 
                         .notification-icon {
@@ -221,50 +295,31 @@ const Navbar = ({ offlineCount = 0 }) => {
                             height: 40px;
                         }
 
+                        .navbar.scrolled .notification-icon {
+                            width: 30px;
+                            height: 36px;
+                        }
+
                         .profile-button {
                             font-size: 13px;
                             padding: 8px 12px;
-                            font-family: 'Roboto', sans-serif;
-                        }
-                    }
-
-                    @media (max-width: 480px) {
-                        .navbar {
-                            padding: 10px 12px;
                         }
 
-                        .navbar-title {
-                            font-size: 18px;
-                            font-family: 'Roboto', sans-serif;
-                        }
-
-                        .profile-button {
-                            padding: 6px 10px;
+                        .navbar.scrolled .profile-button {
                             font-size: 12px;
-                            font-family: 'Roboto', sans-serif;
-                        }
-
-                        .notification-icon {
-                            width: 36px;
-                            height: 36px;
-                            padding: 8px;
-                        }
-
-                        .notification-tooltip {
-                            top: 50px;
-                            right: -15px;
+                            padding: 6px 10px;
                         }
                     }
 
-                    /* Transitions subtiles */
+                    /* Animation d'entrée */
                     .navbar {
-                        animation: slideDown 0.3s ease-out;
+                        animation: slideDown 0.6s cubic-bezier(0.4, 0, 0.2, 1);
                     }
 
                     @keyframes slideDown {
                         from {
                             opacity: 0;
-                            transform: translateY(-20px);
+                            transform: translateY(-100%);
                         }
                         to {
                             opacity: 1;
@@ -278,6 +333,23 @@ const Navbar = ({ offlineCount = 0 }) => {
                     .notification-icon:focus {
                         outline: 2px solid rgb(16, 10, 84);
                         outline-offset: 2px;
+                    }
+
+                    /* Animation de flottement subtile */
+                    .navbar::before {
+                        content: '';
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        height: 1px;
+                        background: linear-gradient(90deg, transparent, rgba(16, 10, 84, 0.1), transparent);
+                        opacity: 0;
+                        transition: opacity 0.3s ease;
+                    }
+
+                    .navbar.scrolled::before {
+                        opacity: 1;
                     }
                 `}
             </style>

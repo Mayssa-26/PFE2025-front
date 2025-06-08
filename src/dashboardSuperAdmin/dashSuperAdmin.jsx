@@ -1,11 +1,8 @@
 "use client";
 import { FaArrowRight } from 'react-icons/fa';
-
 import { useEffect, useRef, useState } from "react";
 import NavbarSuperAdmin from "./NavBarSupAdmin";
 import SidebarSupAdmin from "./SideBarSupAdmin";
-
-
 import axios from "axios";
 import { ShoppingBag, BarChart2, PieChart, TrendingUp } from "lucide-react";
 import { FaSearch } from "react-icons/fa";
@@ -33,6 +30,7 @@ const DashSuperAdmin = () => {
   const [error, setError] = useState(null);
   const [currentPage] = useState(1);
   const [offlineCount, setOfflineCount] = useState(0);
+  const [groups, setGroups] = useState({}); // Store group names by ID
   const vehiclesPerPage = 5;
   const currentVehicles = vehicles.slice(
     (currentPage - 1) * vehiclesPerPage,
@@ -43,7 +41,7 @@ const DashSuperAdmin = () => {
     (vehicle) =>
       vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       vehicle.id.toString().includes(searchTerm) ||
-      (vehicle.groupId && vehicle.groupId.toString().includes(searchTerm))
+      (vehicle.groupId && (vehicle.groupId.name || vehicle.groupId.toString()).includes(searchTerm))
   );
 
   useEffect(() => {
@@ -57,50 +55,59 @@ const DashSuperAdmin = () => {
             headers: { Authorization: "Basic " + btoa("admin:admin") },
           }
         );
-        const vehiclesWithSensors = vehiclesWithSensorsResponse.data.length;
-        setVehicles(vehiclesWithSensorsResponse.data);
-        const offlineVehicles = vehiclesWithSensorsResponse.data.filter(
+        let vehiclesWithSensors = vehiclesWithSensorsResponse.data;
+
+        // Fetch groups to map group IDs to names
+        const groupsResponse = await fetch("http://localhost:8000/api/groupes");
+        if (!groupsResponse.ok) throw new Error("Erreur lors de la récupération des groupes");
+        const groupsData = await groupsResponse.json();
+        const groupsMap = groupsData.reduce((acc, group) => {
+          acc[group.id] = group.name;
+          return acc;
+        }, {});
+
+        // Map group names to vehicles
+        vehiclesWithSensors = vehiclesWithSensors.map(vehicle => ({
+          ...vehicle,
+          groupId: groupsMap[vehicle.groupId] || vehicle.groupId || "-"
+        }));
+
+        setVehicles(vehiclesWithSensors);
+        const offlineVehicles = vehiclesWithSensors.filter(
           (v) => v.status !== "online"
         ).length;
-        const onlineVehicles = vehiclesWithSensors - offlineVehicles;
+        const onlineVehicles = vehiclesWithSensors.length - offlineVehicles;
 
         const vehiclesWithoutSensorsResponse = await axios.get(
           "/api/vehicules/getVehicules"
         );
-        const vehiclesWithoutSensors =
-          vehiclesWithoutSensorsResponse.data.length;
+        const vehiclesWithoutSensors = vehiclesWithoutSensorsResponse.data.length;
 
         const adminsResponse = await fetch(
           "http://localhost:8000/api/groupes/getAdminsWithGroups"
         );
-        if (!adminsResponse.ok)
-          throw new Error("Erreur lors de la récupération des admins");
+        if (!adminsResponse.ok) throw new Error("Erreur lors de la récupération des admins");
         const adminsData = await adminsResponse.json();
         const adminsCount = adminsData.length;
 
-        // Récupérer le nombre de groupes (remplacez par votre véritable endpoint)
-        const groupsResponse = await fetch("http://localhost:8000/api/groupes");
-        if (!groupsResponse.ok)
-          throw new Error("Erreur lors de la récupération des groupes");
-        const groupsData = await groupsResponse.json();
         const groupsCount = groupsData.length;
-
-        const positionsCount = 102; // Remplacer par un appel API réel si disponible
+        const positionsCount = 102;
 
         setStats({
-          chauffeurs: vehiclesWithSensors,
+          chauffeurs: vehiclesWithSensors.length,
           vehicules: vehiclesWithoutSensors,
           telephones: adminsCount,
           positions: positionsCount,
-          onlinePercentage: vehiclesWithSensors
-            ? ((onlineVehicles / vehiclesWithSensors) * 100).toFixed(1)
+          onlinePercentage: vehiclesWithSensors.length
+            ? ((onlineVehicles / vehiclesWithSensors.length) * 100).toFixed(1)
             : 0,
-          offlinePercentage: vehiclesWithSensors
-            ? ((offlineVehicles / vehiclesWithSensors) * 100).toFixed(1)
+          offlinePercentage: vehiclesWithSensors.length
+            ? ((offlineVehicles / vehiclesWithSensors.length) * 100).toFixed(1)
             : 0,
           groups: groupsCount,
         });
         setOfflineCount(offlineVehicles);
+        setGroups(groupsMap);
 
         setTeamAData([44, 58, 35, 53, 40, 48, 32, 46, 39, 52, 40]);
         setTeamBData([37, 45, 42, 50, 35, 44, 30, 43, 34, 48, 38]);
@@ -133,8 +140,7 @@ const DashSuperAdmin = () => {
 
     ctx.clearRect(0, 0, width, height);
 
-    const total =
-      stats.chauffeurs + stats.vehicules + stats.telephones + stats.positions;
+    const total = stats.chauffeurs + stats.vehicules + stats.telephones + stats.positions;
     const data = [
       { color: "#2196F3", value: stats.chauffeurs / total },
       { color: "#4CAF50", value: stats.vehicules / total },
@@ -258,7 +264,7 @@ const DashSuperAdmin = () => {
         }
 
         .stat-value {
-          font-size: 1.75remontant
+          font-size: 1.75rem;
           font-weight: 700;
           color: var(--text-primary);
           margin: 0;

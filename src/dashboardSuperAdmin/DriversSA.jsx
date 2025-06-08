@@ -11,9 +11,7 @@ import PropTypes from 'prop-types';
 import NavbarSuperAdmin from './NavBarSupAdmin';
 import SidebarSupAdmin from './SideBarSupAdmin';
 
-
-
-const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description = "Consultez et gérez tous les chauffeurs de tous les groupes" }) => {
+const DriversSA = ({ title = "Liste des Chauffeurs", description = "Consultez et gérez tous les chauffeurs de tous les groupes" }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [drivers, setDrivers] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -62,35 +60,32 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
       setError(null);
 
       try {
-        // Récupérer tous les groupes
-        const groupsResponse = await axios.get(`${TRACCAR_API}/groups`, {
-          auth: TRACCAR_AUTH,
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        });
+        const [groupsResponse, driversResponse, devicesResponse] = await Promise.all([
+          axios.get(`${TRACCAR_API}/groups`, {
+            auth: TRACCAR_AUTH,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          }),
+          axios.get(`${TRACCAR_API}/drivers`, {
+            auth: TRACCAR_AUTH,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          }),
+          axios.get(`${TRACCAR_API}/devices`, {
+            auth: TRACCAR_AUTH,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          }),
+        ]);
+
         setGroups(groupsResponse.data);
 
-        // Récupérer tous les chauffeurs
-        const driversResponse = await axios.get(`${TRACCAR_API}/drivers`, {
-          auth: TRACCAR_AUTH,
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        });
-
-        // Récupérer tous les appareils
-        const devicesResponse = await axios.get(`${TRACCAR_API}/devices`, {
-          auth: TRACCAR_AUTH,
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        });
-
-        // Mapper les chauffeurs avec leurs groupes et véhicules
         const driverMap = {};
         driversResponse.data
           .filter(driver => {
-            const isArchived = driver.attributes && driver.attributes.archived === true;
+            const isArchived = driver.attributes?.archived === true;
             console.log(`Driver ${driver.name} (ID: ${driver.id}) archived: ${isArchived}`);
             return !isArchived;
           })
           .forEach(driver => {
-            const group = groupsResponse.data.find(g => g.name === driver.attributes?.group) || { name: 'Aucun groupe' };
+            const group = groupsResponse.data.find(g => g.name === driver.attributes?.group) || { name: 'Aucun groupe', id: null };
             driverMap[driver.name] = {
               name: driver.name,
               id: driver.id,
@@ -138,7 +133,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
     (statusSelection === 'all' || driver.vehicles.some(v => v.status === statusSelection))
   );
 
-  // Gestion du formulaire d'ajout ou d'édition de chauffeur
+  // Gestion du formulaire
   const handleDriverFormChange = (e) => {
     const { name, value } = e.target;
     setDriverForm(prev => ({ ...prev, [name]: value }));
@@ -190,7 +185,6 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
       toast.success("Chauffeur ajouté avec succès !");
       setDriverForm({ name: '', uniqueId: '', groupId: '' });
       setShowAddDriverModal(false);
-
       await refreshDrivers();
     } catch (err) {
       console.error('Erreur lors de l\'ajout du chauffeur:', err);
@@ -200,7 +194,6 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
     }
   };
 
-  // Gestion de l'édition d'un chauffeur
   const handleEditDriver = async (e) => {
     e.preventDefault();
     if (!validateDriverForm()) return;
@@ -211,9 +204,11 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
     try {
       const selectedGroup = groups.find(g => g.id === parseInt(driverForm.groupId));
       const payload = {
+        id: driverToEdit.id,
         name: driverForm.name,
         uniqueId: driverForm.uniqueId,
         attributes: {
+          ...driverToEdit.attributes,
           group: selectedGroup?.name || '',
           archived: false,
         },
@@ -228,7 +223,6 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
       setDriverForm({ name: '', uniqueId: '', groupId: '' });
       setShowEditDriverModal(false);
       setDriverToEdit(null);
-
       await refreshDrivers();
     } catch (err) {
       console.error('Erreur lors de la modification du chauffeur:', err);
@@ -238,23 +232,28 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
     }
   };
 
-  // Gestion de l'archivage d'un chauffeur
+  const handleArchiveClick = (driver) => {
+    if (driver.vehicles.length > 0) {
+      toast.error(`Impossible d'archiver le chauffeur "${driver.name}" car il est associé à ${driver.vehicles.length} capteur(s).`);
+      return;
+    }
+    setDriverToArchive(driver);
+    setShowArchiveConfirmModal(true);
+  };
+
   const handleArchiveDriver = async () => {
     if (!driverToArchive) return;
 
     setLoading(prev => ({ ...prev, actions: true }));
 
     try {
-      // Fetch current driver data
       const driverRes = await axios.get(`${TRACCAR_API}/drivers/${driverToArchive.id}`, {
         auth: TRACCAR_AUTH,
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       });
       const driver = driverRes.data;
-      console.log('Driver to archive:', driver);
 
-      // Update driver with archived: true
-      const response = await axios.put(
+      await axios.put(
         `${TRACCAR_API}/drivers/${driverToArchive.id}`,
         {
           id: driver.id,
@@ -270,13 +269,10 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           headers: { 'Content-Type': 'application/json' },
         }
       );
-      console.log('Archive response:', response.data);
 
       toast.success(`Chauffeur "${driverToArchive.name}" archivé avec succès !`);
       setShowArchiveConfirmModal(false);
       setDriverToArchive(null);
-
-      // Force refresh drivers list
       await refreshDrivers();
     } catch (err) {
       console.error('Erreur lors de l\'archivage du chauffeur:', err);
@@ -286,10 +282,9 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
     }
   };
 
-  // Fonction pour rafraîchir la liste des chauffeurs
   const refreshDrivers = async () => {
     try {
-      setDrivers([]); // Clear state to avoid stale data
+      setDrivers([]);
       const [driversResponse, devicesResponse] = await Promise.all([
         axios.get(`${TRACCAR_API}/drivers`, {
           auth: TRACCAR_AUTH,
@@ -301,17 +296,15 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
         }),
       ]);
 
-      console.log('Drivers response:', driversResponse.data);
-
       const driverMap = {};
       driversResponse.data
         .filter(driver => {
-          const isArchived = driver.attributes && driver.attributes.archived === true;
+          const isArchived = driver.attributes?.archived === true;
           console.log(`Driver ${driver.name} (ID: ${driver.id}) archived: ${isArchived}`);
           return !isArchived;
         })
         .forEach(driver => {
-          const group = groups.find(g => g.name === driver.attributes?.group) || { name: 'Aucun groupe' };
+          const group = groups.find(g => g.name === driver.attributes?.group) || { name: 'Aucun groupe', id: null };
           driverMap[driver.name] = {
             name: driver.name,
             id: driver.id,
@@ -343,13 +336,11 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
     }
   };
 
-  // Générer un avatar à partir des initiales
   const getInitials = (name) => {
     const names = name.split(' ');
     return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
   };
 
-  // Générer une couleur d'avatar basée sur le nom
   const getAvatarColor = (name) => {
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const hue = hash % 360;
@@ -359,8 +350,8 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   return (
-        <>
-    <style>{`
+    <>
+      <style>{`
         :root {
           --primary-color: #1e1d54;
           --secondary-color: #426e91;
@@ -434,7 +425,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
         }
 
         .status-select {
-          padding: 0.75rem;
+          padding: 0.5rem;
           border: 1px solid var(--border-color);
           border-radius: var(--border-radius);
           font-size: 0.875rem;
@@ -452,7 +443,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
         .search-container {
           position: relative;
           max-width: 400px;
-          margin-bottom: 1.5rem;
+          width: 100%;
         }
 
         .search-icon {
@@ -537,7 +528,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           transition: all 0.2s ease;
         }
 
-        .action-btn.edit:hover {
+        .action-btn:hover {
           background-color: rgba(24, 20, 81, 0.1);
           color: var(--info-color);
         }
@@ -597,8 +588,8 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.6);
-          backdrop-filter: blur(4px);
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(6px);
           z-index: 1000;
           display: flex;
           justify-content: center;
@@ -606,28 +597,44 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           animation: fadeIn 0.3s ease-out;
         }
 
+        .modal-content-add,
+        .modal-content-edit,
         .modal-content-archivage {
           background: var(--card-background);
           border-radius: var(--border-radius);
-          padding: 10px;
-          width: 200px;
+          padding: 1.5rem;
+          max-width: 600px;
+          width: 95%;
           box-shadow: var(--shadow-md);
           animation: slideIn 0.3s ease-out;
-          height: 250px;
         }
 
-        .driver-details h3,
-        .confirmation-modal,
-        .map-form h3 {
+        .modal-content-archivage {
+          max-width: 400px;
+          text-align: center;
+        }
+
+        .confirmation-modal-title {
           font-size: 1.5rem;
           font-weight: 600;
           color: var(--text-primary);
           margin-bottom: 1rem;
         }
 
-        .driver-details p,
-        .confirmation-modal + p,
-        .map-form p {
+        .confirmation-modal p {
+          font-size: 0.875rem;
+          color: var(--text-primary);
+          margin-bottom: 1.5rem;
+        }
+
+        .driver-details h3 {
+          font-size: 1.5rem;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin-bottom: 1rem;
+        }
+
+        .driver-details p {
           font-size: 0.875rem;
           color: var(--text-secondary);
           margin-bottom: 0.75rem;
@@ -636,7 +643,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
         .vehicles-list {
           list-style: none;
           padding: 0;
-          margin: 0 0 1rem;
+          margin: 1rem 0;
         }
 
         .vehicle-item {
@@ -653,84 +660,59 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
 
         .vehicle-item strong {
           color: var(--text-primary);
-        }
-
-        .map-form {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .form-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1rem;
-        }
-
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-          width: 100px;
-        }
-
-        .form-group label {
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: var(--text-primary);
-        }
-
-        .form-group input {
-          padding: 0.75rem;
-          border: 1px solid var(--border-color);
-          border-radius: var(--border-radius);
-          font-size: 0.875rem;
-          transition: border-color 0.2s ease;
-        }
-
-        .form-group input:focus {
-          outline: none;
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 3px rgba(30, 29, 84, 0.1);
-        }
-
-        .group-container {
-          width: 150px;
-          max-width: 400px;
+          font-weight: 600;
         }
 
         .group-form-container {
           display: flex;
           flex-direction: column;
           gap: 1rem;
-          width: 800px;
+        }
+
+        .group-form-container h3 {
+          font-size: 1.25rem;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin: 0;
+          padding-bottom: 0.5rem;
+          border-bottom: 2px solid var(--primary-color);
         }
 
         .group-input-group {
           display: flex;
           flex-direction: column;
           gap: 0.5rem;
-          width: 100%;
         }
 
         .group-input-group label {
-          font-size: 0.875rem;
+          font-size: 0.9rem;
           font-weight: 500;
           color: var(--text-primary);
         }
 
-        .group-input-group input {
+        .group-input-group input,
+        .group-input-group select {
           padding: 0.75rem;
           border: 1px solid var(--border-color);
           border-radius: var(--border-radius);
-          font-size: 0.875rem;
+          font-size: 0.9rem;
+          color: var(--text-primary);
+          background: white;
           transition: border-color 0.2s ease;
         }
 
-        .group-input-group input:focus {
+        .group-input-group input:focus,
+        .group-input-group select:focus {
           outline: none;
           border-color: var(--primary-color);
           box-shadow: 0 0 0 3px rgba(30, 29, 84, 0.1);
+        }
+
+        .group-select {
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M8 10.5L4 6.5h8L8 10.5z'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 0.75rem center;
         }
 
         .form-actions {
@@ -738,12 +720,9 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           justify-content: center;
           gap: 1rem;
           margin-top: 1rem;
-          flex-wrap: wrap;
         }
 
-        .group-btn,
-        .btn-primary,
-        .btn-secondary {
+        .group-btn {
           padding: 0.75rem 1.5rem;
           border: none;
           border-radius: var(--border-radius);
@@ -753,44 +732,38 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           transition: all 0.2s ease;
         }
 
-        .group-btn.primary,
-        .btn-primary {
-          background: var(--primary-color);
+        .group-btn.primary {
+          background-color: var(--primary-color);
           color: white;
         }
 
-        .group-btn.primary:hover:not(:disabled),
-        .btn-primary:hover:not(:disabled) {
-          background: var(--secondary-color);
+        .group-btn.primary:hover:not(:disabled) {
+          background-color: var(--secondary-color);
           transform: translateY(-2px);
         }
 
-        .group-btn.secondary,
-        .btn-secondary {
-          background: #f3f4f6;
+        .group-btn.secondary {
+          background-color: #f3f4f6;
           color: var(--text-primary);
           border: 1px solid var(--border-color);
         }
 
-        .group-btn.secondary:hover:not(:disabled),
-        .btn-secondary:hover:not(:disabled) {
-          background: #e5e7eb;
+        .group-btn.secondary:hover:not(:disabled) {
+          background-color: #e5e7eb;
           transform: translateY(-2px);
         }
 
         .group-btn.danger {
-          background: var(--error-color);
+          background-color: var(--error-color);
           color: white;
         }
 
         .group-btn.danger:hover:not(:disabled) {
-          background: #dc2626;
+          background-color: #dc2626;
           transform: translateY(-2px);
         }
 
-        .group-btn:disabled,
-        .btn-primary:disabled,
-        .btn-secondary:disabled {
+        .group-btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
         }
@@ -800,10 +773,10 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           color: var(--error-color);
           padding: 1rem;
           border-radius: var(--border-radius);
-          margin-bottom: 1.5rem;
           display: flex;
           justify-content: space-between;
           align-items: center;
+          font-size: 0.875rem;
         }
 
         .alert.error button {
@@ -814,22 +787,11 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           cursor: pointer;
         }
 
-        .loading {
-          text-align: center;
-          color: var(--text-secondary);
-          padding: 2rem;
-          background: var(--card-background);
-          border-radius: var(--border-radius);
-          box-shadow: var(--shadow-sm);
-        }
-
+        .loading,
         .no-results {
           text-align: center;
           color: var(--text-secondary);
           padding: 2rem;
-          background: var(--card-background);
-          border-radius: var(--border-radius);
-          box-shadow: var(--shadow-sm);
         }
 
         .toggle-btn {
@@ -847,18 +809,8 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           font-size: 1rem;
         }
 
-        .spinner-btn {
-          display: inline-block;
-          width: 1rem;
-          height: 1rem;
-          border: 2px solid white;
-          border-top: 2px solid transparent;
-          border-radius: 50%;
-          animation: spin 0.75s linear infinite;
-          margin-right: 0.5rem;
-        }
-
         @keyframes spin {
+          from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
 
@@ -885,10 +837,6 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
             flex-direction: column;
             align-items: stretch;
           }
-
-          .form-grid {
-            grid-template-columns: 1fr;
-          }
         }
 
         @media (max-width: 768px) {
@@ -896,22 +844,15 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
             display: block;
           }
 
-          .modal-content-edit {
-            padding: 1.5rem;
-            width: 100px;
-            height: 300px;
+          .modal-content-add,
+          .modal-content-edit,
+          .modal-content-archivage {
+            padding: 1rem;
+            width: 90%;
           }
 
-          .driver-details h3,
-          .confirmation-modal,
-          .map-form h3 {
-            font-size: 1.25rem;
-          }
-
-          .driver-details p,
-          .confirmation-modal + p,
-          .map-form p {
-            font-size: 0.875rem;
+          .group-form-container h3 {
+            font-size: 1.1rem;
           }
 
           .form-actions {
@@ -919,9 +860,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
             gap: 0.5rem;
           }
 
-          .group-btn,
-          .btn-primary,
-          .btn-secondary {
+          .group-btn {
             width: 100%;
           }
         }
@@ -936,440 +875,203 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
           }
 
           .group-input-group input,
-          .form-group input {
+          .group-input-group select {
+            font-size: 0.8rem;
+            padding: 0.5rem;
+          }
+
+          .alert.error {
             font-size: 0.75rem;
           }
         }
 
         button:focus-visible,
         .action-btn:focus-visible,
-        .group-btn:focus-visible,
-        .btn-primary:focus-visible,
-        .btn-secondary:focus-visible {
+        .group-btn:focus-visible {
           outline: 2px solid var(--primary-color);
           outline-offset: 2px;
         }
 
         @media (prefers-reduced-motion: reduce) {
           * {
-            animation-duration: 0.01ms !important;
-            transition-duration: 0.01ms !important;
+            animation: none;
+            transition: none;
           }
         }
-          .modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
-  z-index: 1000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  animation: fadeIn 0.3s ease-out;
-}
-
-.modal-content-add {
-  background: #f8fafc;
-  border-radius: var(--border-radius);
-  padding: 1.5rem;
-  max-width: 600px;
-  width: 95%;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-  animation: scaleIn 0.3s ease-out;
-  height: 650px;
-}
-
-.group-container {
-  width: 500px;
-  max-width: 600px;
-  margin-left: 1.5rem;
-  margin-top: -1.5rem;
-}
-
-.group-form-container {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  width: 500px;
-  padding: 1.5rem;
-  
-}
-
-.group-form-container h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-  padding-bottom: 0.5rem;
-  border-bottom: 2px solid #2c3e50;
-}
-
-.alert.error {
-  background-color: rgba(239, 68, 68, 0.05);
-  color: var(--error-color);
-  padding: 0.75rem 1rem;
-  border: 2px solid var(--error-color);
-  border-radius: var(--border-radius);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.alert.error button {
-  background: none;
-  border: none;
-  color: var(--error-color);
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 0.2rem;
-  transition: color 0.2s ease;
-}
-
-.alert.error button:hover {
-  color: #c0392b;
-}
-
-.group-input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.group-input-group label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.group-input-group input {
-  padding: 0.65rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  color: var(--text-primary);
-  background: white;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.group-input-group input:hover {
-  border-color: #94a3b8;
-}
-
-.group-input-group input:focus {
-  outline: none;
-  border-color: #2c3e50;
-  box-shadow: 0 0 0 3px rgb(25, 17, 77);
-}
-
-.group-input-group input::placeholder {
-  color: #94a3b8;
-}
-
-.form-actions {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-top: 1rem;
-  flex-wrap: wrap;
-}
-
-.group-btn {
-  padding: 0.65rem 1.25rem;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.group-btn.primary {
-  background:rgb(15, 12, 61);
-  color: white;
-}
-
-.group-btn.primary:hover:not(:disabled) {
-  background:rgb(19, 15, 57);
-  transform: translateY(-2px);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-}
-
-.group-btn.secondary {
-  background: #95a5a6;
-  color: white;
-}
-
-.group-btn.secondary:hover:not(:disabled) {
-  background: #7f8c8d;
-  transform: translateY(-2px);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-}
-
-.group-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes scaleIn {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-@media (max-width: 768px) {
-  .modal-content {
-    padding: 1rem;
-    width: 140px;
-  }
-
-  .group-form-container h3 {
-    font-size: 1.1rem;
-  }
-
-  .form-actions {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .group-btn {
-    width: 100%;
-    padding: 0.65rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .group-input-group label {
-    font-size: 0.8rem;
-  }
-
-  .group-input-group input {
-    font-size: 0.8rem;
-    padding: 0.5rem;
-  }
-
-  .alert.error {
-    font-size: 0.75rem;
-  }
-}
-
-.group-btn:focus-visible,
-.group-input-group input:focus-visible {
-  outline: 2px solidrgb(24, 25, 67);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .modal-overlay,
-  .modal-content {
-    animation: none;
-  }
-
-  .group-btn,
-  .group-input-group input {
-    transition: none;
-  }
-}
       `}</style>
-    <div className="dashboard-admin">
-      <style>
-        {`
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-          @keyframes slideIn {
-            from { transform: translateY(-20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-          }
-        `}
-      </style>
-      <button className="toggle-btn" onClick={toggleSidebar}>
-        {isSidebarOpen ? '✕' : '☰'}
-      </button>
 
-      <SidebarSupAdmin isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+      <div className="dashboard-admin">
+        <button className="toggle-btn" onClick={toggleSidebar}>
+          {isSidebarOpen ? '✕' : '☰'}
+        </button>
 
-      <div className="main-content">
-        <NavbarSuperAdmin />
+        <SidebarSupAdmin isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
-        <div className="container2">
-          <div className="header">
-            <h2>{title}</h2>
-            <p>{description}</p>
-          </div>
+        <div className="main-content">
+          <NavbarSuperAdmin />
 
-          <div className="filter-bar">
-            <button
-              className="group-btn primary"
-              onClick={() => setShowAddDriverModal(true)}
-              disabled={loading.drivers || groups.length === 0}
-            >
-              Ajouter un chauffeur
-            </button>
-            <label htmlFor="statusSelect">Filtrer par statut :</label>
-            <select
-              id="statusSelect"
-              value={statusSelection}
-              onChange={(e) => setStatusSelection(e.target.value)}
-              className="status-select"
-            >
-              <option value="all">Tous</option>
-              <option value="online">Online</option>
-              <option value="offline">Offline</option>
-            </select>
-          </div>
-
-          <div className="search-container">
-            <FaSearch className="search-icon" />
-            <input
-              type="text"
-              placeholder="Rechercher par nom de chauffeur..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="search-input"
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="alert error">
-            {error}
-            <button onClick={() => setError(null)}>×</button>
-          </div>
-        )}
-
-        <div className="drivers-section">
-          <h3>Tous les chauffeurs</h3>
-          {loading.drivers ? (
-            <div className="loading">Chargement des chauffeurs...</div>
-          ) : filteredDrivers.length === 0 ? (
-            <div className="no-results">
-              Aucun chauffeur trouvé {searchTerm && `pour "${searchTerm}"`}
+          <div className="container2">
+            <div className="header">
+              <h2>{title}</h2>
+              <p>{description}</p>
             </div>
-          ) : (
-            <div className="drivers-grid">
-              {filteredDrivers.map(driver => (
-                <div
-                  key={driver.id}
-                  className="driver-card"
-                  onClick={() => setSelectedDriver(driver)}
-                  style={{ '--avatar-color': getAvatarColor(driver.name) }}
-                >
-                  <div className="driver-actions">
-                    <button
-                      className="action-btn edit"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDriverToEdit(driver);
-                        setDriverForm({
-                          name: driver.name,
-                          uniqueId: driver.uniqueId,
-                          groupId: driver.groupId || '',
-                        });
-                        setShowEditDriverModal(true);
-                      }}
-                      title="Modifier le chauffeur"
-                    >
-                      <i className="edit-icon">✏️</i>
-                    </button>
-                    <button
-                      className="action-btn archive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDriverToArchive(driver);
-                        setShowArchiveConfirmModal(true);
-                      }}
-                      title="Archiver le chauffeur"
-                    >
-                      <i className="archive-icon">🗑️</i>
-                    </button>
-                  </div>
 
-                  <div className="driver-avatar">{getInitials(driver.name)}</div>
-                  <div className="driver-info">
-                    <h4>{driver.name}</h4>
-                    <p className="group-name">Groupe: {driver.groupName}</p>
-                    <p>Capteurs: {driver.vehicles.length}</p>
-                    <p>
-                      Statut:{' '}
-                      {driver.vehicles.some(v => v.status === 'online') ? (
-                        <span className="status-badge online">Online</span>
-                      ) : (
-                        <span className="status-badge offline">Offline</span>
-                      )}
-                    </p>
-                  </div>
+            <div className="filter-bar">
+              <button
+                className="group-btn primary"
+                onClick={() => setShowAddDriverModal(true)}
+                disabled={loading.drivers || groups.length === 0}
+              >
+                Ajouter un chauffeur
+              </button>
+              <label htmlFor="statusSelect">Filtrer par statut :</label>
+              <select
+                id="statusSelect"
+                value={statusSelection}
+                onChange={(e) => setStatusSelection(e.target.value)}
+                className="status-select"
+              >
+                <option value="all">Tous</option>
+                <option value="online">Online</option>
+                <option value="offline">Offline</option>
+              </select>
+            </div>
+
+            <div className="search-container">
+              <FaSearch className="search-icon" />
+              <input
+                type="text"
+                placeholder="Rechercher par nom de chauffeur..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-input"
+              />
+            </div>
+
+            {error && (
+              <div className="alert error">
+                {error}
+                <button onClick={() => setError(null)}>×</button>
+              </div>
+            )}
+
+            <div className="drivers-section">
+              <h3>Tous les chauffeurs</h3>
+              {loading.drivers ? (
+                <div className="loading">Chargement des chauffeurs...</div>
+              ) : filteredDrivers.length === 0 ? (
+                <div className="no-results">
+                  <p>Aucun chauffeur trouvé {searchTerm && `pour "${searchTerm}"`}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {selectedDriver && (
-        <div className="modal-overlay active">
-          <div className="modal-content">
-            <div className="driver-details">
-              <h3>Chauffeur: {selectedDriver.name}</h3>
-              <p>Groupe: {selectedDriver.groupName}</p>
-              <h4>Véhicules attribués</h4>
-              {selectedDriver.vehicles.length === 0 ? (
-                <p>Aucun véhicule attribué</p>
               ) : (
-                <ul className="vehicles-list">
-                  {selectedDriver.vehicles.map(vehicle => (
-                    <li key={vehicle.vehicleId} className="vehicle-item">
-                      <div>
-                        <strong>{vehicle.vehicleName}</strong>
-                        <p>Statut: <span className={`status-badge ${vehicle.status}`}>{vehicle.status}</span></p>
+                <div className="drivers-grid">
+                  {filteredDrivers.map((driver) => (
+                    <div
+                      key={driver.id}
+                      className="driver-card"
+                      onClick={() => setSelectedDriver(driver)}
+                      style={{ '--avatar-color': getAvatarColor(driver.name) }}
+                    >
+                      <div className="driver-actions">
+                        <button
+                          className="action-btn edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDriverToEdit(driver);
+                            setDriverForm({
+                              name: driver.name,
+                              uniqueId: driver.uniqueId,
+                              groupId: driver.groupId || '',
+                            });
+                            setShowEditDriverModal(true);
+                          }}
+                          title="Modifier le chauffeur"
+                        >
+                          <span className="edit-icon">✏️</span>
+                        </button>
+                        <button
+                          className="action-btn delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleArchiveClick(driver);
+                          }}
+                          title="Archiver le chauffeur"
+                        >
+                          <span className="archive-icon">🗑️</span>
+                        </button>
                       </div>
-                    </li>
+                      <div className="driver-avatar">{getInitials(driver.name)}</div>
+                      <div className="driver-info">
+                        <h4>{driver.name}</h4>
+                        <p className="group-name">Groupe: {driver.groupName}</p>
+                        <p>Capteurs: {driver.vehicles.length}</p>
+                        <p>
+                          Statut:{' '}
+                          {driver.vehicles.some(v => v.status === 'online') ? (
+                            <span className="status-badge online">Online</span>
+                          ) : (
+                            <span className="status-badge offline">Offline</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setSelectedDriver(null)}
-                >
-                  Fermer
-                </button>
+            </div>
+          </div>
+        </div>
+
+        {selectedDriver && (
+          <div className="modal-overlay">
+            <div className="modal-content-add">
+              <div className="driver-details">
+                <h3>Chauffeur: {selectedDriver.name}</h3>
+                <p>Groupe: {selectedDriver.groupName}</p>
+                <h4>Véhicules attribués</h4>
+                {selectedDriver.vehicles.length === 0 ? (
+                  <p>Aucun véhicule attribué</p>
+                ) : (
+                  <ul className="vehicles-list">
+                    {selectedDriver.vehicles.map((vehicle) => (
+                      <li key={vehicle.vehicleId} className="vehicle-item">
+                        <div>
+                          <strong>{vehicle.vehicleName}</strong>
+                          <p>
+                            Statut: <span className={`status-badge ${vehicle.status}`}>{vehicle.status}</span>
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="group-btn secondary"
+                    onClick={() => setSelectedDriver(null)}
+                  >
+                    Fermer
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showAddDriverModal && (
-        
-        <div className="modal-overlay active">
-          <div className="modal-content-add">
-            <div className="group-container">
+        {showAddDriverModal && (
+          <div className="modal-overlay">
+            <div className="modal-content-add">
               <div className="group-form-container">
                 {formError && (
                   <div className="alert error">
                     {formError}
                     <button onClick={() => setFormError(null)} type="button">×</button>
-                    
                   </div>
                 )}
-                
                 <form onSubmit={handleDriverFormSubmit}>
-                  
+                  <h3>Ajouter un chauffeur</h3>
                   <div className="group-input-group">
-                    <h3 style={{ fontSize: '22px', fontWeight: 600, color: 'rgb(25, 17, 77)', marginBottom: '15px' }}>
-                  Ajouter un chauffeur
-                </h3>
                     <label htmlFor="name">Nom du chauffeur</label>
                     <input
                       id="name"
@@ -1404,7 +1106,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
                       required
                     >
                       <option value="">Sélectionner un groupe</option>
-                      {groups.map(group => (
+                      {groups.map((group) => (
                         <option key={group.id} value={group.id}>
                           {group.name}
                         </option>
@@ -1423,56 +1125,23 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
                       type="button"
                       className="group-btn secondary"
                       onClick={() => setShowAddDriverModal(false)}
-                        title="Ajouter un chauffeur"
                       disabled={loading.form}
                     >
-                      
-                      <i style={{ fontStyle: 'normal', fontSize: '14px' }}>❌</i>
+                      <span style={{ fontStyle: 'normal', fontSize: '14px' }}>❌</span>
                       Annuler
                     </button>
-                    
                   </div>
                 </form>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showEditDriverModal && driverToEdit && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 1000,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-          className="modal-overlay active"
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: '25px',
-              borderRadius: '10px',
-              maxWidth: '600px',
-              width: '90%',
-              boxShadow: '0 5px 15px rgba(0, 0, 0, 0.2)',
-              animation: 'slideIn 0.3s ease-out',
-            }}
-            className="modal-content-edit"
-          >
-            <div className="group-container">
+        {showEditDriverModal && driverToEdit && (
+          <div className="modal-overlay">
+            <div className="modal-content-edit">
               <div className="group-form-container">
-                <h3 style={{ fontSize: '22px', fontWeight: 600, color: 'rgb(25, 17, 77)', marginBottom: '15px' }}>
-                  Modifier le chauffeur
-                </h3>
+                <h3>Modifier le chauffeur</h3>
                 {formError && (
                   <div className="alert error">
                     {formError}
@@ -1515,7 +1184,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
                       required
                     >
                       <option value="">Sélectionner un groupe</option>
-                      {groups.map(group => (
+                      {groups.map((group) => (
                         <option key={group.id} value={group.id}>
                           {group.name}
                         </option>
@@ -1525,19 +1194,6 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
                   <div className="form-actions">
                     <button
                       type="submit"
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: 'rgb(25, 17, 77)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        fontSize: '15px',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                      }}
-                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#0056b3')}
-                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#007bff')}
                       className="group-btn primary"
                       disabled={loading.form || groups.length === 0}
                     >
@@ -1545,22 +1201,6 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
                     </button>
                     <button
                       type="button"
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#f1f1f1',
-                        color: '#333',
-                        border: 'none',
-                        borderRadius: '5px',
-                        fontSize: '15px',
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        transition: 'all 0.2s ease',
-                      }}
-                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#ddd')}
-                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f1f1')}
                       className="group-btn secondary"
                       onClick={() => {
                         setShowEditDriverModal(false);
@@ -1569,7 +1209,7 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
                       }}
                       disabled={loading.form}
                     >
-                      <i style={{ fontStyle: 'normal', fontSize: '14px' }}>❌</i>
+                      <span style={{ fontStyle: 'normal', fontSize: '14px' }}>❌</span>
                       Annuler
                     </button>
                   </div>
@@ -1577,133 +1217,52 @@ const DriversSA = ({ title = "Liste des Chauffeurs (Super Admin)", description =
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showArchiveConfirmModal && driverToArchive && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 1000,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-          className="modal-overlay active"
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: '25px',
-              borderRadius: '10px',
-              maxWidth: '400px',
-              width: '90%',
-              textAlign: 'center',
-              boxShadow: '0 5px 15px rgba(0, 0, 0, 0.2)',
-              animation: 'slideIn 0.3s ease-out',
-            }}
-            className="modal-content-archivage"
-          >
-            <h3
-              style={{
-                fontSize: '22px',
-                fontWeight: 600,
-                color: '#2c3e50',
-                marginBottom: '15px',
-              }}
-              className="confirmation-modal"
-            >
-              ⚠️ Confirmer l'archivage
-            </h3>
-            <p
-              style={{
-                color: '#555',
-                fontSize: '16px',
-                marginBottom: '25px',
-                lineHeight: 1.5,
-              }}
-            >
-              Êtes-vous sûr de vouloir archiver le chauffeur{' '}
-              <strong>{driverToArchive.name}</strong> ?
-            </p>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                gap: '15px',
-              }}
-              className="form-actions"
-            >
-              <button
-                onClick={handleArchiveDriver}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: 'red',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '5px',
-                  fontSize: '15px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#c0392b')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#e74c3c')}
-                className="group-btn danger"
-                disabled={loading.actions}
-              >
-                {loading.actions ? 'Archivage...' : 'Confirmer'}
-              </button>
-              <button
-                onClick={() => {
-                  setShowArchiveConfirmModal(false);
-                  setDriverToArchive(null);
-                }}
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#f1f1f1',
-                  color: '#333',
-                  border: 'none',
-                  borderRadius: '5px',
-                  fontSize: '15px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#ddd')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f1f1f1')}
-                className="group-btn secondary"
-                disabled={loading.actions}
-              >
-                <i style={{ fontStyle: 'normal', fontSize: '14px' }}>❌</i>
-                Annuler
-              </button>
+        {showArchiveConfirmModal && driverToArchive && (
+          <div className="modal-overlay">
+            <div className="modal-content-archivage">
+              <h3 className="confirmation-modal-title">⚠️ Confirmer l'archivage</h3>
+              <p>
+                Êtes-vous sûr de vouloir archiver le chauffeur{' '}
+                <strong>{driverToArchive.name}</strong> ?
+              </p>
+              <div className="form-actions">
+                <button
+                  onClick={handleArchiveDriver}
+                  className="group-btn danger"
+                  disabled={loading.actions}
+                >
+                  {loading.actions ? 'Archivage...' : 'Confirmer'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowArchiveConfirmModal(false);
+                    setDriverToArchive(null);
+                  }}
+                  className="group-btn secondary"
+                  disabled={loading.actions}
+                >
+                  <span style={{ fontStyle: 'normal', fontSize: '14px' }}>❌</span>
+                  Annuler
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
-    </div>
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+        />
+      </div>
     </>
   );
 };

@@ -1186,9 +1186,7 @@ const StaticRouteMap = () => {
   return (
     <div className="trajet-container">
       <div className="button-container">
-        <button className="geofence-check-btn chat-toggle-btn" onClick={toggleChat}>
-          {isChatOpen ? "× Fermer" : "💬 Ouvrir le Chatbot"}
-        </button>
+        
       </div>
       {isChatOpen && (
         <div className="chat-container">

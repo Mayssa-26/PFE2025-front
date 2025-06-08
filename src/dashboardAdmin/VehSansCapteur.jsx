@@ -187,9 +187,9 @@ const VehiculesSansCapteur = () => {
             border-radius: var(--radius-md);
             box-shadow: var(--shadow-sm);
             padding: 25px;
-            margin: 25px auto;
+            margin: 30px auto;
             max-width: 1200px;
-            margin-top: 50px;
+            margin-top: 80px;
           }
 
           /* Header */
@@ -314,6 +314,7 @@ const VehiculesSansCapteur = () => {
 
           .status-badge.online {
             background-color: var(--success-color);
+            color: white;
           }
 
           .status-badge.offline {
@@ -330,7 +331,7 @@ const VehiculesSansCapteur = () => {
             }
 
             .container2 {
-              padding: 15px;
+              padding: 20px;
               margin: 10px;
             }
 

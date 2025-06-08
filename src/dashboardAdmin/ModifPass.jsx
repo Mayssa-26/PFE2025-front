@@ -181,7 +181,8 @@ const PasswordChange = ({ onCancel }) => {
             align-items: center;
             min-height: calc(100vh - 120px);
             animation: fadeInUp 0.6s ease-out;
-            padding: 1.5rem;
+            padding: 2rem;
+            margin-top: 20px;
           }
 
           .register-form-container {
@@ -313,7 +314,7 @@ const PasswordChange = ({ onCancel }) => {
           }
 
           .password-strength-container {
-            margin-top: 0.75rem;
+            margin-top: 1.5rem;
           }
 
           .password-strength-bar {
@@ -436,7 +437,7 @@ const PasswordChange = ({ onCancel }) => {
 
           @media (max-width: 768px) {
             .register-form-container {
-              padding: 1.5rem;
+              padding: 2rem;
               max-width: 100%;
             }
 

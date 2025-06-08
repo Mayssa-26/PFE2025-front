@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -5,7 +7,6 @@ import { FaSearch } from 'react-icons/fa';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import PropTypes from 'prop-types';
-import { Map as MapIcon } from 'lucide-react';
 import jwt_decode from 'jwt-decode';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -34,6 +35,7 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
   const TRACCAR_API = 'https://yepyou.treetronix.com/api';
   const TRACCAR_AUTH = { username: 'admin', password: 'admin' };
 
+  // Authentification et récupération du groupe de l'admin
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -48,7 +50,7 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
 
       const fetchAdminGroup = async () => {
         try {
-          const response = await axios.get(`api/vehicules/admin/${decoded.id}`, {
+          const response = await axios.get(`/api/vehicules/admin/${decoded.id}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (response.data?.success) {
@@ -63,17 +65,20 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             setError(response.data?.message || `Aucun groupe assigné à l'admin ${decoded.id}`);
           }
         } catch (apiError) {
+          console.error('Erreur lors de la récupération du groupe:', apiError);
           setError(`Erreur lors de la récupération du groupe: ${apiError.response?.data?.message || apiError.message}`);
         }
       };
 
       fetchAdminGroup();
     } catch (tokenError) {
+      console.error('Erreur de token:', tokenError);
       localStorage.removeItem('token');
       navigate('/login');
     }
   }, [navigate]);
 
+  // Récupération des chauffeurs depuis Traccar
   useEffect(() => {
     if (!adminGroupName || !isAuthenticated) return;
 
@@ -82,13 +87,20 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
       setError(null);
 
       try {
-        const groupsResponse = await axios.get(`${TRACCAR_API}/groups`, {
-          auth: TRACCAR_AUTH,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        });
+        const [groupsResponse, driversResponse, devicesResponse] = await Promise.all([
+          axios.get(`${TRACCAR_API}/groups`, {
+            auth: TRACCAR_AUTH,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          }),
+          axios.get(`${TRACCAR_API}/drivers`, {
+            auth: TRACCAR_AUTH,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          }),
+          axios.get(`${TRACCAR_API}/devices`, {
+            auth: TRACCAR_AUTH,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          }),
+        ]);
 
         const matchedGroup = groupsResponse.data.find(group => group.name.toLowerCase() === adminGroupName.toLowerCase());
         if (!matchedGroup) {
@@ -97,41 +109,17 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           return;
         }
 
-        const driversResponse = await axios.get(`${TRACCAR_API}/drivers`, {
-          auth: TRACCAR_AUTH,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        });
-
-        const filteredDrivers = driversResponse.data
-          .filter(driver => driver.attributes?.group === matchedGroup.name)
-          .map(driver => ({
-            name: driver.name,
-            vehicles: [],
-            id: driver.id,
-            uniqueId: driver.uniqueId,
-          }));
-
-        const devicesResponse = await axios.get(`${TRACCAR_API}/devices`, {
-          params: { groupId: matchedGroup.id },
-          auth: TRACCAR_AUTH,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        });
-
         const driverMap = {};
-        filteredDrivers.forEach(driver => {
-          driverMap[driver.name] = {
-            name: driver.name,
-            id: driver.id,
-            uniqueId: driver.uniqueId,
-            vehicles: [],
-          };
-        });
+        driversResponse.data
+          .filter(driver => driver.attributes?.group === matchedGroup.name && !driver.attributes?.archived)
+          .forEach(driver => {
+            driverMap[driver.name] = {
+              name: driver.name,
+              id: driver.id,
+              uniqueId: driver.uniqueId,
+              vehicles: [],
+            };
+          });
 
         devicesResponse.data
           .filter(device => device.groupId === matchedGroup.id && device.attributes?.chauffeur)
@@ -150,9 +138,10 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
         setDrivers(mappedDrivers);
 
         if (mappedDrivers.length === 0) {
-          setError(`Aucun chauffeur trouvé dans le groupe "${adminGroupName}"`);
+          setError(`Aucun chauffeur actif trouvé dans le groupe "${adminGroupName}"`);
         }
       } catch (err) {
+        console.error('Erreur API Traccar:', err);
         setError(err.response?.data?.message || 'Erreur de chargement des chauffeurs depuis Traccar');
         setDrivers([]);
       } finally {
@@ -163,48 +152,38 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
     fetchDriversFromTraccar();
   }, [adminGroupName, isAuthenticated]);
 
+  // Rafraîchissement de la liste des chauffeurs
   const refreshDriversList = async () => {
     if (!adminGroupName) return;
 
+    setLoading(prev => ({ ...prev, drivers: true }));
     try {
-      const driversResponse = await axios.get(`${TRACCAR_API}/drivers`, {
-        auth: TRACCAR_AUTH,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-
-      const groupsResponse = await axios.get(`${TRACCAR_API}/groups`, {
-        auth: TRACCAR_AUTH,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
+      const [groupsResponse, driversResponse, devicesResponse] = await Promise.all([
+        axios.get(`${TRACCAR_API}/groups`, {
+          auth: TRACCAR_AUTH,
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        }),
+        axios.get(`${TRACCAR_API}/drivers`, {
+          auth: TRACCAR_AUTH,
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        }),
+        axios.get(`${TRACCAR_API}/devices`, {
+          auth: TRACCAR_AUTH,
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        }),
+      ]);
 
       const matchedGroup = groupsResponse.data.find(group => group.name.toLowerCase() === adminGroupName.toLowerCase());
-      if (matchedGroup) {
-        const filteredDrivers = driversResponse.data
-          .filter(driver => driver.attributes?.group === matchedGroup.name)
-          .map(driver => ({
-            name: driver.name,
-            id: driver.id,
-            uniqueId: driver.uniqueId,
-            vehicles: [],
-          }));
+      if (!matchedGroup) {
+        setDrivers([]);
+        setError(`Aucun groupe nommé "${adminGroupName}" trouvé dans Traccar`);
+        return;
+      }
 
-        const devicesResponse = await axios.get(`${TRACCAR_API}/devices`, {
-          params: { groupId: matchedGroup.id },
-          auth: TRACCAR_AUTH,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-        });
-
-        const driverMap = {};
-        filteredDrivers.forEach(driver => {
+      const driverMap = {};
+      driversResponse.data
+        .filter(driver => driver.attributes?.group === matchedGroup.name && !driver.attributes?.archived)
+        .forEach(driver => {
           driverMap[driver.name] = {
             name: driver.name,
             id: driver.id,
@@ -213,31 +192,35 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           };
         });
 
-        devicesResponse.data
-          .filter(device => device.groupId === matchedGroup.id && device.attributes?.chauffeur)
-          .forEach(device => {
-            const chauffeur = device.attributes.chauffeur;
-            if (driverMap[chauffeur]) {
-              driverMap[chauffeur].vehicles.push({
-                vehicleName: device.name,
-                vehicleId: device.id,
-                status: device.status === 'online' ? 'online' : 'offline',
-              });
-            }
-          });
+      devicesResponse.data
+        .filter(device => device.groupId === matchedGroup.id && device.attributes?.chauffeur)
+        .forEach(device => {
+          const chauffeur = device.attributes.chauffeur;
+          if (driverMap[chauffeur]) {
+            driverMap[chauffeur].vehicles.push({
+              vehicleName: device.name,
+              vehicleId: device.id,
+              status: device.status === 'online' ? 'online' : 'offline',
+            });
+          }
+        });
 
-        setDrivers(Object.values(driverMap));
-      }
+      setDrivers(Object.values(driverMap));
     } catch (err) {
       console.error('Erreur lors de l\'actualisation:', err);
+      toast.error('Erreur lors de l\'actualisation des chauffeurs');
+    } finally {
+      setLoading(prev => ({ ...prev, drivers: false }));
     }
   };
 
+  // Filtrage des chauffeurs
   const filteredDrivers = drivers.filter(driver =>
     driver.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
     (statusSelection === 'all' || driver.vehicles.some(v => v.status === statusSelection))
   );
 
+  // Gestion du formulaire
   const handleDriverFormChange = (e) => {
     const { name, value } = e.target;
     setDriverForm(prev => ({ ...prev, [name]: value }));
@@ -276,23 +259,20 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
         uniqueId: driverForm.uniqueId,
         attributes: {
           group: adminGroupName,
+          archived: false,
         },
       };
 
       if (showEditDriverModal && driverToEdit) {
         await axios.put(`${TRACCAR_API}/drivers/${driverToEdit.id}`, payload, {
           auth: TRACCAR_AUTH,
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
         toast.success("Chauffeur modifié avec succès !");
       } else {
         await axios.post(`${TRACCAR_API}/drivers`, payload, {
           auth: TRACCAR_AUTH,
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
         toast.success("Chauffeur ajouté avec succès !");
       }
@@ -301,10 +281,10 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
       setShowAddDriverModal(false);
       setShowEditDriverModal(false);
       setDriverToEdit(null);
-
       await refreshDriversList();
     } catch (err) {
       const action = showEditDriverModal ? 'modification' : 'ajout';
+      console.error(`Erreur lors de la ${action} du chauffeur:`, err);
       toast.error(`Échec de la ${action} du chauffeur: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(prev => ({ ...prev, form: false }));
@@ -316,13 +296,17 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
     setDriverToEdit(driver);
     setDriverForm({
       name: driver.name,
-      uniqueId: driver.uniqueId
+      uniqueId: driver.uniqueId,
     });
     setShowEditDriverModal(true);
   };
 
   const handleDeleteDriver = (driver, e) => {
     e.stopPropagation();
+    if (driver.vehicles.length > 0) {
+      toast.error(`Impossible de supprimer le chauffeur "${driver.name}" car il est associé à ${driver.vehicles.length} véhicule(s).`);
+      return;
+    }
     setDriverToDelete(driver);
     setShowDeleteConfirmModal(true);
   };
@@ -335,17 +319,15 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
     try {
       await axios.delete(`${TRACCAR_API}/drivers/${driverToDelete.id}`, {
         auth: TRACCAR_AUTH,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
 
-      toast.success("Chauffeur supprimé avec succès !");
+      toast.success(`Chauffeur "${driverToDelete.name}" supprimé avec succès !`);
       setShowDeleteConfirmModal(false);
       setDriverToDelete(null);
-
       await refreshDriversList();
     } catch (err) {
+      console.error('Erreur lors de la suppression du chauffeur:', err);
       toast.error(`Échec de la suppression du chauffeur: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(prev => ({ ...prev, delete: false }));
@@ -358,42 +340,54 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
     setLoading(prev => ({ ...prev, positions: true }));
 
     const formData = new FormData(e.target);
-    const fromLocal = new Date(`${formData.get("fromDate")}T${formData.get("fromTime")}`);
-    const toLocal = new Date(`${formData.get("toDate")}T${formData.get("toTime")}`);
-    const fromUTC = new Date(fromLocal.getTime()).toISOString();
-    const toUTC = new Date(toLocal.getTime()).toISOString();
+    const fromLocal = new Date(`${formData.get("fromDate")}T${formData.get("fromTime")}:00`);
+    const toLocal = new Date(`${formData.get("toDate")}T${formData.get("toTime")}:00`);
+    const fromUTC = fromLocal.toISOString();
+    const toUTC = toLocal.toISOString();
+
+    if (fromLocal >= toLocal) {
+      setFormError("La date de début doit être antérieure à la date de fin");
+      setLoading(prev => ({ ...prev, positions: false }));
+      return;
+    }
 
     try {
       const response = await axios.get(`${TRACCAR_API}/reports/route`, {
         params: { deviceId: selectedVehicle.vehicleId, from: fromUTC, to: toUTC },
         auth: TRACCAR_AUTH,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       });
 
       const positions = response.data.map(pos => ({
         ...pos,
-        timestamp: pos.timestamp ? new Date(pos.timestamp).toISOString() : null,
+        timestamp: pos.serverTime ? new Date(pos.serverTime).toISOString() : null,
       }));
 
       navigate('/trajet', {
         state: { positions, vehicleName: selectedVehicle.vehicleName, period: { from: fromUTC, to: toUTC } },
       });
     } catch (error) {
-      setFormError('Erreur lors du chargement du trajet: ' + error.message);
+      console.error('Erreur lors du chargement du trajet:', error);
+      setFormError(`Erreur lors du chargement du trajet: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(prev => ({ ...prev, positions: false }));
     }
   };
 
+  const handleVehicleClick = (e, vehicle, driver) => {
+    e.stopPropagation();
+    setSelectedVehicle(vehicle);
+    setSelectedDriver(driver);
+  };
+
   const getInitials = (name) => {
+    if (!name) return '';
     const names = name.split(' ');
     return names.map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
   };
 
   const getAvatarColor = (name) => {
+    if (!name) return '#000000';
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const hue = hash % 360;
     return `hsl(${hue}, 70%, 50%)`;
@@ -406,52 +400,43 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
       <style>
         {`
           :root {
-            --primary-color: #101a43;
-            --secondary-color: #0c2647;
-            --primary-gradient: linear-gradient(to bottom, #101a43, #0c2647);
-            --success-color: #22c55e;
+            --primary-color:rgb(10, 22, 56);
+            --secondary-color:rgb(25, 45, 90);
+            --success-color: #10b981;
             --error-color: #ef4444;
             --warning-color: #f59e0b;
             --info-color: #3b82f6;
-            --background-color: #f8fafc;
-            --card-background: white;
-            --text-primary: #1f2937;
-            --text-secondary: #6b7280;
-            --border-color: #e5e7eb;
-            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
-            --border-radius: 12px;
-            --transition: all 0.3s ease;
+            --background-color: #f5f7fa;
+            --card-background: #ffffff;
+            --text-primary: #111827;
+            --text-secondary: #4b5563;
+            --border-color: #d1d5db;
+            --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 10px rgba(0, 0, 0, 0.1);
+            --border-radius: 8px;
+            --transition: all 0.2s ease-in-out;
+            --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --font-heading: 'Inter', sans-serif;
           }
-            .btn-fermer{
-            padding: 0.75rem;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            border: none;
-            transition: var(--transition);
-            }
 
           .dashboard-admin {
             display: flex;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
             min-height: 100vh;
             background-color: var(--background-color);
+            font-family: var(--font-primary);
           }
 
           .main-content {
             flex: 1;
-            margin-left: 240px;
-            padding: flex 2rem;
-            transition: margin-left 0.3s ease;
-            background: var(--background-color);
+            margin-left: 250px;
+            padding: 1.5rem;
+            transition: margin-left var(--transition);
             overflow-y: auto;
           }
 
           .container2 {
             max-width: 1200px;
-            margin: 0 auto;
-            margin-top: 2rem;
+            margin: 2rem auto 0;
           }
 
           .header {
@@ -460,32 +445,28 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             border-radius: var(--border-radius);
             box-shadow: var(--shadow-sm);
             margin-bottom: 2rem;
-            backdrop-filter: blur(10px);
+            margin-top: 5rem;
           }
 
           .header h2 {
-            font-family: 'Playfair Display', serif;
-            font-size: 2rem;
-            font-weight: 600;
+            font-family: var(--font-heading);
+            font-size: 1.75rem;
+            font-weight: 700;
             color: var(--text-primary);
-            background: var(--primary-gradient);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
             margin: 0;
           }
 
           .header p {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            margin: 0.5rem 0 0;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
           }
 
           .filter-bar {
             display: flex;
             align-items: center;
             gap: 1rem;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
             flex-wrap: wrap;
           }
 
@@ -496,66 +477,69 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           }
 
           .status-select {
-            padding: 0.75rem;
-            border: 1px solid #2c3e50;
-            border-radius: 10px;
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            background: var(--card-background);
+            color: var(--text-primary);
+            transition: var(--transition);
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%234b5563' viewBox='0 0 16 16'%3E%3Cpath d='M8 10.5L4 6.5h8L8 10.5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+          }
+
+          .status-select:focus-visible {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.2);
+          }
+
+          .search-container {
+            position: relative;
+            max-width: 350px;
+            width: 100%;
+          }
+
+          .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
+            font-size: 1rem;
+          }
+
+          .search-input {
+            width: 100%;
+            padding: 0.5rem 1rem 0.5rem 2.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
             font-size: 0.875rem;
             background: var(--card-background);
             color: var(--text-primary);
             transition: var(--transition);
           }
 
-          .status-select:focus {
-            outline: none;
+          .search-input:focus-visible {
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(16, 26, 67, 0.15);
-          }
-
-          .search-container {
-            position: relative;
-            max-width: 400px;
-            width: 100%;
-            margin-bottom: 1.5rem;
-          }
-
-          .search-icon {
-            position: absolute;
-            left: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-secondary);
-            font-size: 1.2rem;
-          }
-
-          .search-input {
-            width: input 100%;
-            padding: 0.75rem 1rem 0.75rem 2.5rem;
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius);
-            font-size: 1rem;
-            background: rgba(255, 255, 255, 0.8);
-            color: var(--text-primary);
-            transition: var(--transition);
-          }
-
-          .search-input:focus {
+            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.2);
             outline: none;
-            border-color: 2px solid #2c3e50;
-            box-shadow: 0 0 0 3px rgba(16, 26, 67, 0.15);
           }
 
           .drivers-section {
             background: var(--card-background);
             border-radius: var(--border-radius);
             box-shadow: var(--shadow-sm);
-            margin:20px;
             padding: 1.5rem;
-            backdrop-filter: blur(5px);
           }
 
           .drivers-section h3 {
-            font-family: 'Playfair Display', serif;
+            font-family: var(--font-heading);
             font-size: 1.5rem;
+            font-weight: 600;
             color: var(--text-primary);
             margin-bottom: 1rem;
           }
@@ -563,21 +547,21 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           .drivers-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 1.5rem;
+            gap: 1.25rem;
           }
 
           .driver-card {
             background: var(--card-background);
             border-radius: var(--border-radius);
             box-shadow: var(--shadow-sm);
-            padding: 1rem;
+            padding: 1.25rem;
             position: relative;
             cursor: pointer;
             transition: var(--transition);
           }
 
           .driver-card:hover {
-            transform: translateY(-4px);
+            transform: translateY(-3px);
             box-shadow: var(--shadow-md);
           }
 
@@ -586,54 +570,47 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             top: 0.5rem;
             right: 0.5rem;
             display: flex;
-            gap: 0.75rem;
+            gap: 0.5rem;
             opacity: 0;
             transition: var(--transition);
           }
 
           .driver-card:hover .driver-actions {
-           
-            opacity: 0.5;
+            opacity: 1;
           }
 
           .action-btn {
-            background: 0.5rem;
+            background: none;
             border: none;
             cursor: pointer;
-            font-size: 1.2rem;
+            font-size: 1rem;
             padding: 0.5rem;
             border-radius: 50%;
             transition: var(--transition);
           }
 
-          .action-btn.edit {
+          .action-btn.edit:hover,
+          .action-btn.edit:focus-visible {
+            background-color: rgba(59, 131, 246, 0.1);
             color: var(--info-color);
           }
 
-          .action-btn.edit:hover {
-            background-color: rgba(59, 131, 246, 0.99);
-            color: var(--info-color);
-          }
-
-          .action-btn.delete {
-            color: var(--error-color);
-          }
-
-          .action-btn.delete:hover {
-            background-color: rgba(239, 68, 68, 0.51);
+          .action-btn.delete:hover,
+          .action-btn.delete:focus-visible {
+            background-color: rgba(239, 68, 68, 0.1);
             color: var(--error-color);
           }
 
           .driver-avatar {
-            width: 48px;
-            height: 48px;
+            width: 40px;
+            height: 40px;
             background: var(--avatar-color);
             color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.25rem;
+            font-size: 1rem;
             font-weight: 600;
             margin-bottom: 0.75rem;
           }
@@ -652,7 +629,8 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           }
 
           .status-badge {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
             padding: 0.25rem 0.75rem;
             border-radius: 1rem;
             font-size: 0.75rem;
@@ -660,7 +638,7 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           }
 
           .status-badge.online {
-            background-color: rgba(34, 197, 94, 0.1);
+            background-color: rgba(16, 185, 129, 0.1);
             color: var(--success-color);
           }
 
@@ -675,7 +653,7 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.75);
             backdrop-filter: blur(6px);
             z-index: 1000;
             display: flex;
@@ -684,35 +662,37 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             animation: fadeIn 0.3s ease-out;
           }
 
-          .modal-overlay.active {
-            display: flex;
-          }
-
           .modal-content {
             background: var(--card-background);
             border-radius: var(--border-radius);
-            padding: 1rem.5rem;
-            max-width: 600px;
-            width: 90%;
-            box-shadow: 0 6px 20px rgba(0, 0, 0.2);
-            animation: scaleIn 0.3s ease-out;
-            overflow-y: auto;
+            padding: 1.5rem;
+            max-width: 500px;
+            width: 95%;
+            box-shadow: var(--shadow-md);
+            animation: slideIn 0.3s ease-out;
             max-height: 90vh;
-            backdrop-filter: blur(10px);
+            overflow-y: auto;
           }
 
-          .driver-details-container {
-            padding: 20px;
+          .driver-details-container,
+          .confirmation-content,
+          .map-form {
+            padding: 0.5rem;
           }
 
-          .driver-details, .confirmation-modal, .map-form {
-            font-family: 'Playfair Display', serif;
+          .driver-details,
+          .confirmation-modal,
+          .map-form h3 {
+            font-family: var(--font-heading);
             font-size: 1.5rem;
+            font-weight: 600;
             color: var(--text-primary);
             margin-bottom: 1rem;
           }
 
-          .driver-details p, .confirmation-content p, .map-form p {
+          .driver-details p,
+          .confirmation-content p,
+          .map-form p {
             font-size: 0.875rem;
             color: var(--text-secondary);
             margin-bottom: 0.75rem;
@@ -720,7 +700,7 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
 
           .vehicles-list {
             list-style: none;
-            padding: none0;
+            padding: 0;
             margin: 0 0 1rem;
           }
 
@@ -738,13 +718,19 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
 
           .vehicle-item strong {
             color: var(--text-primary);
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+          }
+
+          .vehicle-item strong:hover {
+            color: var(--primary-color);
           }
 
           .map-form {
             display: flex;
             flex-direction: column;
             gap: 1rem;
-            width: 100%;
           }
 
           .form-grid {
@@ -754,37 +740,36 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           }
 
           .form-group {
-            display: 100%;
-            width: flex;
+            display: flex;
             flex-direction: column;
             gap: 0.5rem;
           }
 
           .form-group label {
-            font-size: 0.9rem;
+            font-size: 0.875rem;
             font-weight: 500;
             color: var(--text-primary);
           }
 
           .form-group input {
-            padding: 0.75rem;
-            border: 1px solid #2c3e50;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            background: rgba(255, 255, 255, 0.8);
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            background: var(--card-background);
             color: var(--text-primary);
             transition: var(--transition);
           }
 
-          .form-group input:focus {
-            outline: none;
+          .form-group input:focus-visible {
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(16, 26, 67, 0.15);
+            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.2);
+            outline: none;
           }
 
           .group-container {
             width: 100%;
-            max-width: 500px;
+            max-width: 450px;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
@@ -792,105 +777,106 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           }
 
           .group-form-container {
-            display: flex;
-            flex-direction: column;
             width: 100%;
-            max-width: 500px;
-            padding: 1.5rem;
+            padding: 0.5rem;
           }
 
           .group-form-container h3 {
-            font-family: 'Playfair Display', serif;
+            font-family: var(--font-heading);
             font-size: 1.5rem;
             font-weight: 600;
             color: var(--text-primary);
-            margin: 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
             padding-bottom: 0.5rem;
-            border-bottom: 2px solid var(--border-color);
           }
 
           .group-input-group {
-            display: .form-group;
             margin-bottom: 1rem;
           }
 
           .group-input-group label {
-            font-size: 0.9rem;
+            font-size: 0.875rem;
             color: var(--text-primary);
-            font-weight: bold 500;
+            font-weight: 500;
+            display: block;
+            margin-bottom: 0.25rem;
           }
 
           .group-input-group input {
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #2c3e50;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            background: rgba(255, 255, 255, 0.8);
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            background: var(--card-background);
             color: var(--text-primary);
-            transition: var(--border-color 0.2s, box-shadow 0.2s);
+            transition: var(--transition);
           }
 
-          .group-input-group input:focus {
+          .group-input-group input:focus-visible {
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(16, 26, 67, 0.15);
+            box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.2);
             outline: none;
           }
 
           .form-actions {
             display: flex;
-            justify-content: center;
-            gap: 1rem;
+            justify-content: flex-end;
+            gap: 0.75rem;
             margin-top: 1rem;
             flex-wrap: wrap;
           }
 
-          .group-btn {
-            , .btn-primary, .btn-secondary {
-            padding: 0.75rem;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            font-weight: 600;
+          .btn {
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            font-weight: 500;
             cursor: pointer;
             border: none;
             transition: var(--transition);
+            text-align: center;
+            line-height: 1.5;
           }
 
-          .group-btn {
-            background: var(--primary-gradient);
+          .btn--primary {
+            background: var(--primary-color);
             color: white;
+          }
+
+          .btn--primary:hover:not(:disabled),
+          .btn--primary:focus-visible {
+            background: var(--secondary-color);
+            transform: translateY(-1px);
             box-shadow: var(--shadow-sm);
           }
 
-          .group-btn-primary:hover:not(:disabled) {
-            background: var(--primary-color);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-          }
-
-          .group-btn.secondary {
+          .btn--secondary {
             background: #6b7280;
             color: white;
           }
 
-          .group-btn .btn-secondary:hover:not(:disabled) {
-            background: #555;
-            transform: translateY(-2px);
+          .btn--secondary:hover:not(:disabled),
+          .btn--secondary:focus-visible {
+            background: #4b5563;
+            transform: translateY(-1px);
             box-shadow: var(--shadow-sm);
           }
 
-          .group-btn.danger {
+          .btn--danger {
             background: var(--error-color);
             color: white;
           }
 
-          .group-btn.danger:hover:not(:disabled) {
-            background: #dc3545;
-            transform: translateY(-2px);
+          .btn--danger:hover:not(:disabled),
+          .btn--danger:focus-visible {
+            background: #dc2626;
+            transform: translateY(-1px);
             box-shadow: var(--shadow-sm);
           }
 
-          .group-btn:disabled, .btn-primary:disabled, .btn-secondary:disabled {
+          .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
             transform: none;
@@ -899,14 +885,14 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           .alert.error {
             background-color: rgba(239, 68, 68, 0.1);
             color: var(--error-color);
-            padding: 0.75rem;
+            padding: 0.75rem 1rem;
             border: 1px solid var(--error-color);
             border-radius: var(--border-radius);
             margin-bottom: 1rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.85rem;
+            font-size: 0.875rem;
           }
 
           .alert.error button {
@@ -918,22 +904,15 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             padding: 0.25rem;
           }
 
-          .loading {
-            text-align: center;
-            color: var(--text-secondary);
-            padding: 2rem;
-            background: var(--card-background);
-            border-radius: var(--border-radius);
-            box-shadow: var(--shadow-sm);
-          }
-
+          .loading,
           .no-results {
             text-align: center;
             color: var(--text-secondary);
-            padding: 2rem;
+            padding: 1.5rem;
             background: var(--card-background);
             border-radius: var(--border-radius);
             box-shadow: var(--shadow-sm);
+            font-size: 0.875rem;
           }
 
           .toggle-btn {
@@ -942,35 +921,39 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             top: 1rem;
             left: 1rem;
             z-index: 1100;
-            background: var(--primary-gradient);
+            background: var(--primary-color);
             color: white;
-            padding: 0.75rem;
-            border-radius: 50%;
+            padding: 0.5rem;
+            border-radius: var(--border-radius);
             cursor: pointer;
-            font-size: 1.2rem;
+            font-size: 1rem;
             box-shadow: var(--shadow-sm);
             transition: var(--transition);
+            border: none;
           }
 
-          .toggle-btn:hover {
-            transform: translateY(-2px);
+          .toggle-btn:hover,
+          .toggle-btn:focus-visible {
+            background: var(--secondary-color);
+            transform: translateY(-1px);
             box-shadow: var(--shadow-md);
           }
 
           .spinner-btn {
             display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 3px solid var(--primary-color);
-            border-top: 3px solid transparent;
+            width: 14px;
+            height: 14px;
+            border: 2px solid white;
+            border-top: 2px solid transparent;
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
             margin-right: 0.5rem;
+            vertical-align: middle;
           }
 
           .confirmation-modal {
             text-align: center;
-            font-family: 'Playfair Display', serif;
+            font-family: var(--font-heading);
             font-size: 1.5rem;
             font-weight: 600;
             color: var(--text-primary);
@@ -978,9 +961,10 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
           }
 
           .confirmation-content p {
-            font-size: 1rem;
+            font-size: 0.875rem;
             color: var(--text-secondary);
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
+            text-align: center;
           }
 
           @keyframes spin {
@@ -992,9 +976,9 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             to { opacity: 1; }
           }
 
-          @keyframes scaleIn {
-            from { transform: scale(0.95); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+          @keyframes slideIn {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
           }
 
           @media (max-width: 1024px) {
@@ -1004,7 +988,7 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             }
 
             .drivers-grid {
-              grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+              grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
             }
 
             .filter-bar {
@@ -1028,30 +1012,23 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             }
 
             .driver-details,
-            .confirmation-header,
+            .confirmation-modal,
             .map-form h3 {
               font-size: 1.25rem;
             }
 
             .group-form-container {
-              padding: 1rem;
-              max-width: 100%;
+              padding: 0.5rem;
             }
 
             .form-actions {
               flex-direction: column;
-              gap: 0.75rem;
+              gap: 0.5rem;
             }
 
-            .group-btn,
-            .btn-primary,
-            .btn-secondary {
+            .btn {
               width: 100%;
-              padding: 0.65rem;
-            }
-
-            .group-input-group input {
-              font-size: 0.85rem;
+              padding: 0.5rem;
             }
           }
 
@@ -1065,83 +1042,62 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
             }
 
             .group-form-container h3 {
-              font-size: 1.2rem;
+              font-size: 1.25rem;
             }
 
-            .group-input-group label {
-              font-size: 0.85rem;
-            }
-
-            .group-input-group input {
-              font-size: 0.85rem;
-              padding: 0.6rem;
+            .group-input-group label,
+            .group-input-group input,
+            .form-group label,
+            .form-group input {
+              font-size: 0.8125rem;
             }
 
             .alert.error {
-              font-size: 0.8rem;
+              font-size: 0.8125rem;
             }
 
-            .group-btn {
-              font-size: 0.85rem;
+            .btn {
+              font-size: 0.8125rem;
             }
           }
 
           @media (prefers-color-scheme: dark) {
             :root {
-              --background-color: #111827;
-              --card-background: rgba(31, 41, 55, 0.95);
-              --text-primary: #f9fafb;
-              --text-secondary: #d1d5db;
-              --border-color: #374151;
-            }
-
-            .dashboard-admin {
-              background: var(--background-color);
-            }
-
-            .main-content,
-            .container2,
-            .header,
-            .drivers-section {
-              background: var(--card-background);
+              --background-color: #1f2937;
+              --card-background: #2d3748;
+              --text-primary: #f3f4f6;
+              --text-secondary: #9ca3af;
+              --border-color: #4b5563;
             }
 
             .search-input,
             .group-input-group input,
             .form-group input,
             .status-select {
-              background: rgba(55, 65, 81, 0.8);
+              background: #374151;
               color: var(--text-primary);
               border-color: var(--border-color);
             }
 
-            .modal-content {
-              background: var(--card-background);
-            }
-
             .alert.error {
-              background: rgba(52, 34, 0, 0.2);
+              background: rgba(239, 68, 68, 0.15);
             }
-          }
 
-          button:focus-visible,
-          .action-btn:focus-visible,
-          .group-btn:focus-visible,
-          .btn-primary:focus-visible,
-          .btn-secondary:focus-visible,
-          input:focus-visible {
-            outline: 2px solid var(--primary-color);
-            outline-offset: 2px;
+            .spinner-btn {
+              border: 2px solid var(--text-primary);
+              border-top: 2px solid transparent;
+            }
           }
 
           @media (prefers-reduced-motion: reduce) {
             * {
-              animation: none !important;
-              transition: none !important;
+              animation: none;
+              transition: none;
             }
           }
         `}
       </style>
+
       <button className="toggle-btn" onClick={toggleSidebar}>
         {isSidebarOpen ? '✕' : '☰'}
       </button>
@@ -1159,10 +1115,10 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
 
           <div className="filter-bar">
             <button
-              className="group-btn primary"
+              className="btn btn--primary"
               onClick={() => setShowAddDriverModal(true)}
               disabled={loading.drivers || !adminGroupName}
-              aria-label="Add new driver"
+              aria-label="Ajouter un nouveau chauffeur"
             >
               Ajouter un chauffeur
             </button>
@@ -1172,7 +1128,7 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
               value={statusSelection}
               onChange={(e) => setStatusSelection(e.target.value)}
               className="status-select"
-              aria-label="Filter by status"
+              aria-label="Filtrer par statut"
             >
               <option value="all">Tous</option>
               <option value="online">En ligne</option>
@@ -1188,363 +1144,385 @@ const Drivers = ({ title = "Liste des Chauffeurs", description = "Consultez et g
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
-              aria-label="Search drivers by name"
+              aria-label="Rechercher des chauffeurs par nom"
             />
+          </div>
+
+          {error && (
+            <div className="alert error">
+              <span>{error}</span>
+              <button onClick={() => setError(null)} aria-label="Fermer l'erreur">×</button>
+            </div>
+          )}
+
+          <div className="drivers-section">
+            <h3>Chauffeurs du groupe {adminGroupName || '...'}</h3>
+            {loading.drivers ? (
+              <div className="loading">Chargement des chauffeurs...</div>
+            ) : filteredDrivers.length === 0 ? (
+              <div className="no-results">
+                Aucun chauffeur trouvé {searchTerm && `pour "${searchTerm}"`}
+              </div>
+            ) : (
+              <div className="drivers-grid">
+                {filteredDrivers.map(driver => (
+                  <div
+                    key={driver.id}
+                    className="driver-card"
+                    onClick={() => setSelectedDriver(driver)}
+                    style={{ '--avatar-color': getAvatarColor(driver.name) }}
+                  >
+                    <div className="driver-actions">
+                      <button
+                        className="action-btn edit"
+                        onClick={(e) => handleEditDriver(driver, e)}
+                        title="Modifier le chauffeur"
+                        aria-label={`Modifier le chauffeur ${driver.name}`}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="action-btn delete"
+                        onClick={(e) => handleDeleteDriver(driver, e)}
+                        title="Supprimer le chauffeur"
+                        aria-label={`Supprimer le chauffeur ${driver.name}`}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                    <div className="driver-avatar">{getInitials(driver.name)}</div>
+                    <div className="driver-info">
+                      <h4>{driver.name}</h4>
+                      <p>Véhicules: {driver.vehicles.length}</p>
+                      <p>
+                        Statut:{' '}
+                        {driver.vehicles.some(v => v.status === 'online') ? (
+                          <span className="status-badge online">En ligne</span>
+                        ) : (
+                          <span className="status-badge offline">Hors ligne</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {error && (
-          <div className="alert error">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} aria-label="Close error">×</button>
+        {selectedDriver && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <div className="driver-details-container">
+                <h3 className="driver-details">Chauffeur: {selectedDriver.name}</h3>
+                <h4>Véhicules attribués</h4>
+                {selectedDriver.vehicles.length === 0 ? (
+                  <p>Aucun véhicule attribué</p>
+                ) : (
+                  <ul className="vehicles-list">
+                    {selectedDriver.vehicles.map(vehicle => (
+                      <li key={vehicle.vehicleId} className="vehicle-item">
+                        <div>
+                          <strong
+                            onClick={(e) => handleVehicleClick(e, vehicle, selectedDriver)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                handleVehicleClick(e, vehicle, selectedDriver);
+                              }
+                            }}
+                          >
+                            {vehicle.vehicleName}
+                          </strong>
+                          <p>
+                            Statut:{' '}
+                            <span className={`status-badge ${vehicle.status}`}>
+                              {vehicle.status === 'online' ? 'En ligne' : 'Hors ligne'}
+                            </span>
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="btn btn--secondary"
+                    onClick={() => setSelectedDriver(null)}
+                    disabled={loading.positions}
+                    aria-label="Fermer les détails du chauffeur"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
-        <div className="drivers-section">
-          <h3>Chauffeurs du groupe {adminGroupName || '...'}</h3>
-          {loading.drivers ? (
-            <div className="loading">Chargement des chauffeurs...</div>
-          ) : filteredDrivers.length === 0 ? (
-            <div className="no-results">
-              Aucun chauffeur trouvé {searchTerm && `pour "${searchTerm}"`}
-            </div>
-          ) : (
-            <div className="drivers-grid">
-              {filteredDrivers.map(driver => (
-                <div
-                  key={driver.name}
-                  className="driver-card"
-                  onClick={() => setSelectedDriver(driver)}
-                  style={{ '--avatar-color': getAvatarColor(driver.name) }}
-                >
-                  <div className="driver-actions">
-                    <button
-                      className="action-btn edit"
-                      onClick={(e) => handleEditDriver(driver, e)}
-                      title="Modifier le chauffeur"
-                      aria-label={`Edit driver ${driver.name}`}
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      className="action-btn delete"
-                      onClick={(e) => handleDeleteDriver(driver, e)}
-                      title="Supprimer le chauffeur"
-                      aria-label={`Delete driver ${driver.name}`}
-                    >
-                      🗑️
-                    </button>
+        {selectedVehicle && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <form className="map-form" onSubmit={handleSubmit}>
+                <h3>Trajet du véhicule: {selectedVehicle.vehicleName}</h3>
+                <p>Chauffeur: {selectedDriver?.name || 'Inconnu'}</p>
+                {formError && (
+                  <div className="alert error">
+                    <span>{formError}</span>
+                    <button onClick={() => setFormError(null)} type="button" aria-label="Fermer l'erreur">×</button>
                   </div>
-
-                  <div className="driver-avatar">{getInitials(driver.name)}</div>
-                  <div className="driver-info">
-                    <h4>{driver.name}</h4>
-                    <p>Capteurs: {driver.vehicles.length}</p>
-                    <p>Statut: {driver.vehicles.some(v => v.status === 'online') ? (
-                      <span className="status-badge online">En ligne</span>
-                    ) : (
-                      <span className="status-badge offline">Hors ligne</span>
-                    )}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {selectedDriver && (
-        <div className="modal-overlay active">
-          <div className="modal-content">
-            <div className="driver-details-container">
-              <h3 className="driver-details">Chauffeur: {selectedDriver.name}</h3>
-              <h4>Véhicules attribués</h4>
-              {selectedDriver.vehicles.length === 0 ? (
-                <p>Aucun véhicule attribué</p>
-              ) : (
-                <ul className="vehicles-list">
-                  {selectedDriver.vehicles.map(vehicle => (
-                    <li key={vehicle.vehicleId} className="vehicle-item">
-                      <div>
-                        <strong>{vehicle.vehicleName}</strong>
-                        <p>Statut: <span className={`status-badge ${vehicle.status}`}>{vehicle.status === 'online' ? 'En ligne' : 'Hors ligne'}</span></p>
-                      </div>
-                     
-                    </li>
+                )}
+                <div className="form-grid">
+                  {['fromDate', 'toDate'].map(field => (
+                    <div key={field} className="form-group">
+                      <label htmlFor={field}>{field === 'fromDate' ? 'Date de début' : 'Date de fin'}</label>
+                      <input
+                        type="date"
+                        id={field}
+                        name={field}
+                        required
+                        disabled={loading.positions}
+                        max={new Date().toISOString().split('T')[0]}
+                        aria-required="true"
+                        aria-label={field === 'fromDate' ? 'Date de début' : 'Date de fin'}
+                      />
+                    </div>
                   ))}
-                </ul>
-              )}
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="btn-fermer"
-                  onClick={() => setSelectedDriver(null)}
-                  disabled={loading.positions}
-                  aria-label="Close driver details"
-                >
-                  Fermer
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedVehicle && (
-        <div className="modal-overlay active">
-          <div className="modal-content">
-            <form className="map-form" onSubmit={handleSubmit}>
-              <h3>Trajet du véhicule: {selectedVehicle.vehicleName}</h3>
-              <p>Chauffeur: {selectedDriver.name}</p>
-              {formError && (
-                <div className="alert error">
-                  <span>{formError}</span>
-                  <button onClick={() => setFormError(null)} type="button" aria-label="Close error">×</button>
+                  {['fromTime', 'toTime'].map(field => (
+                    <div key={field} className="form-group">
+                      <label htmlFor={field}>{field === 'fromTime' ? 'Heure de début' : 'Heure de fin'}</label>
+                      <input
+                        type="time"
+                        id={field}
+                        name={field}
+                        required
+                        disabled={loading.positions}
+                        aria-required="true"
+                        aria-label={field === 'fromTime' ? 'Heure de début' : 'Heure de fin'}
+                      />
+                    </div>
+                  ))}
                 </div>
-              )}
-              <div className="form-grid">
-                {['fromDate', 'toDate'].map(field => (
-                  <div key={field} className="form-group">
-                    <label htmlFor={field}>{field === 'fromDate' ? 'Date de début' : 'Date de fin'}</label>
-                    <input
-                      type="date"
-                      id={field}
-                      name={field}
-                      required
-                      disabled={loading.positions}
-                      max={new Date().toISOString().split('T')[0]}
-                      aria-required="true"
-                      aria-label={field === 'fromDate' ? 'Start date' : 'End date'}
-                    />
-                  </div>
-                ))}
-                {['fromTime', 'toTime'].map(field => (
-                  <div key={field} className="form-group">
-                    <label htmlFor={field}>{field === 'fromTime' ? 'Heure de début' : 'Heure de fin'}</label>
-                    <input
-                      type="time"
-                      id={field}
-                      name={field}
-                      required
-                      disabled={loading.positions}
-                      aria-required="true"
-                      aria-label={field === 'fromTime' ? 'Start time' : 'End time'}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="form-actions">
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={loading.positions}
-                  aria-label="Visualize route"
-                >
-                  {loading.positions ? (
-                    <>
-                      <span className="spinner-btn"></span> Chargement...
-                    </>
-                  ) : (
-                    'Visualiser le trajet'
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    className="btn btn--primary"
+                    disabled={loading.positions}
+                    aria-label="Visualiser le trajet"
+                  >
+                    {loading.positions ? (
+                      <>
+                        <span className="spinner-btn"></span> Chargement...
+                      </>
+                    ) : (
+                      'Visualiser le trajet'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--secondary"
+                    onClick={() => setSelectedVehicle(null)}
+                    disabled={loading.positions}
+                    aria-label="Annuler la visualisation du trajet"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showAddDriverModal && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <div className="group-container">
+                <div className="group-form-container">
+                  <h3>Ajouter un nouveau chauffeur</h3>
+                  {formError && (
+                    <div className="alert error">
+                      <span>{formError}</span>
+                      <button onClick={() => setFormError(null)} type="button" aria-label="Fermer l'erreur">×</button>
+                    </div>
                   )}
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setSelectedVehicle(null)}
-                  disabled={loading.positions}
-                  aria-label="Cancel route visualization"
-                >
-                  Annuler
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showAddDriverModal && (
-        <div className="modal-overlay active">
-          <div className="modal-content">
-            <div className="group-container">
-              <div className="group-form-container">
-                <h3>Ajouter un nouveau chauffeur</h3>
-                {formError && (
-                  <div className="alert error">
-                    <span>{formError}</span>
-                    <button onClick={() => setFormError(null)} type="button" aria-label="Close error">×</button>
-                  </div>
-                )}
-                <form onSubmit={handleDriverFormSubmit}>
-                  <div className="group-input-group">
-                    <label htmlFor="name">Nom du chauffeur</label>
-                    <input
-                      id="name"
-                      type="text"
-                      name="name"
-                      placeholder="Entrez le nom"
-                      value={driverForm.name}
-                      onChange={handleDriverFormChange}
-                      required
-                      aria-required="true"
-                      aria-label="Driver name"
-                    />
-                  </div>
-                  <div className="group-input-group">
-                    <label htmlFor="uniqueId">Identifiant unique</label>
-                    <input
-                      id="uniqueId"
-                      type="text"
-                      name="uniqueId"
-                      placeholder="Entrez l'ID unique"
-                      value={driverForm.uniqueId}
-                      onChange={handleDriverFormChange}
-                      required
-                      aria-required="true"
-                      aria-label="Unique driver ID"
-                    />
-                  </div>
-                  <div className="form-actions">
-                    <button
-                      type="submit"
-                      className="group-btn primary"
-                      disabled={loading.form || !adminGroupName}
-                      aria-label="Save new driver"
-                    >
-                      {loading.form ? 'Envoi...' : 'Enregistrer'}
-                    </button>
-                    <button
-                      type="button"
-                      className="group-btn secondary"
-                      onClick={() => setShowAddDriverModal(false)}
-                      disabled={loading.form}
-                      aria-label="Cancel adding driver"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </form>
+                  <form onSubmit={handleDriverFormSubmit}>
+                    <div className="group-input-group">
+                      <label htmlFor="name">Nom du chauffeur</label>
+                      <input
+                        id="name"
+                        type="text"
+                        name="name"
+                        placeholder="Entrez le nom"
+                        value={driverForm.name}
+                        onChange={handleDriverFormChange}
+                        required
+                        aria-required="true"
+                        aria-label="Nom du chauffeur"
+                      />
+                    </div>
+                    <div className="group-input-group">
+                      <label htmlFor="uniqueId">Identifiant unique</label>
+                      <input
+                        id="uniqueId"
+                        type="text"
+                        name="uniqueId"
+                        placeholder="Entrez l'ID unique"
+                        value={driverForm.uniqueId}
+                        onChange={handleDriverFormChange}
+                        required
+                        aria-required="true"
+                        aria-label="Identifiant unique du chauffeur"
+                      />
+                    </div>
+                    <div className="form-actions">
+                      <button
+                        type="submit"
+                        className="btn btn--primary"
+                        disabled={loading.form || !adminGroupName}
+                        aria-label="Enregistrer le nouveau chauffeur"
+                      >
+                        {loading.form ? 'Envoi...' : 'Enregistrer'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--secondary"
+                        onClick={() => {
+                          setShowAddDriverModal(false);
+                          setDriverForm({ name: '', uniqueId: '' });
+                        }}
+                        disabled={loading.form}
+                        aria-label="Annuler l'ajout du chauffeur"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showEditDriverModal && (
-        <div className="modal-overlay active">
-          <div className="modal-content">
-            <div className="group-container">
-              <div className="group-form-container">
-                <h3>Modifier le chauffeur</h3>
-                {formError && (
-                  <div className="alert error">
-                    <span>{formError}</span>
-                    <button onClick={() => setFormError(null)} type="button" aria-label="Close error">×</button>
-                  </div>
-                )}
-                <form onSubmit={handleDriverFormSubmit}>
-                  <div className="group-input-group">
-                    <label htmlFor="editName">Nom du chauffeur</label>
-                    <input
-                      id="editName"
-                      type="text"
-                      name="name"
-                      placeholder="Entrez le nom"
-                      value={driverForm.name}
-                      onChange={handleDriverFormChange}
-                      required
-                      aria-required="true"
-                      aria-label="Edit driver name"
-                    />
-                  </div>
-                  <div className="group-input-group">
-                    <label htmlFor="editUniqueId">Identifiant unique</label>
-                    <input
-                      id="editUniqueId"
-                      type="text"
-                      name="uniqueId"
-                      placeholder="Entrez l'ID unique"
-                      value={driverForm.uniqueId}
-                      onChange={handleDriverFormChange}
-                      required
-                      aria-required="true"
-                      aria-label="Edit unique driver ID"
-                    />
-                  </div>
-                  <div className="form-actions">
-                    <button
-                      type="submit"
-                      className="group-btn primary"
-                      disabled={loading.form || !adminGroupName}
-                      aria-label="Save edited driver"
-                    >
-                      {loading.form ? 'Modification...' : 'Modifier'}
-                    </button>
-                    <button
-                      type="button"
-                      className="group-btn secondary"
-                      onClick={() => {
-                        setShowEditDriverModal(false);
-                        setDriverToEdit(null);
-                        setDriverForm({ name: '', uniqueId: '' });
-                      }}
-                      disabled={loading.form}
-                      aria-label="Cancel editing driver"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </form>
+        {showEditDriverModal && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <div className="group-container">
+                <div className="group-form-container">
+                  <h3>Modifier le chauffeur</h3>
+                  {formError && (
+                    <div className="alert error">
+                      <span>{formError}</span>
+                      <button onClick={() => setFormError(null)} type="button" aria-label="Fermer l'erreur">×</button>
+                    </div>
+                  )}
+                  <form onSubmit={handleDriverFormSubmit}>
+                    <div className="group-input-group">
+                      <label htmlFor="editName">Nom du chauffeur</label>
+                      <input
+                        id="editName"
+                        type="text"
+                        name="name"
+                        placeholder="Entrez le nom"
+                        value={driverForm.name}
+                        onChange={handleDriverFormChange}
+                        required
+                        aria-required="true"
+                        aria-label="Modifier le nom du chauffeur"
+                      />
+                    </div>
+                    <div className="group-input-group">
+                      <label htmlFor="editUniqueId">Identifiant unique</label>
+                      <input
+                        id="editUniqueId"
+                        type="text"
+                        name="uniqueId"
+                        placeholder="Entrez l'ID unique"
+                        value={driverForm.uniqueId}
+                        onChange={handleDriverFormChange}
+                        required
+                        aria-required="true"
+                        aria-label="Modifier l'identifiant unique du chauffeur"
+                      />
+                    </div>
+                    <div className="form-actions">
+                      <button
+                        type="submit"
+                        className="btn btn--primary"
+                        disabled={loading.form || !adminGroupName}
+                        aria-label="Enregistrer les modifications du chauffeur"
+                      >
+                        {loading.form ? 'Modification...' : 'Modifier'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--secondary"
+                        onClick={() => {
+                          setShowEditDriverModal(false);
+                          setDriverToEdit(null);
+                          setDriverForm({ name: '', uniqueId: '' });
+                        }}
+                        disabled={loading.form}
+                        aria-label="Annuler la modification du chauffeur"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showDeleteConfirmModal && driverToDelete && (
-        <div className="modal-overlay active">
-          <div className="modal-content">
-            <div className="confirmation-content">
-              <h3 className="confirmation-modal">⚠️ Confirmer la suppression</h3>
-              <p>Êtes-vous sûr de vouloir supprimer le chauffeur <strong>{driverToDelete.name}</strong> ?</p>
-              <div className="form-actions">
-                <button
-                  onClick={confirmDeleteDriver}
-                  className="group-btn danger"
-                  disabled={loading.delete}
-                  aria-label={`Confirm delete driver ${driverToDelete.name}`}
-                >
-                  {loading.delete ? 'Suppression...' : 'Confirmer'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowDeleteConfirmModal(false);
-                    setDriverToDelete(null);
-                  }}
-                  className="group-btn secondary"
-                  disabled={loading.delete}
-                  aria-label="Cancel deletion"
-                >
-                  <i style={{ fontStyle: 'normal', fontSize: '14px' }}>❌</i> Annuler
-                </button>
+        {showDeleteConfirmModal && driverToDelete && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <div className="confirmation-content">
+                <h3 className="confirmation-modal">⚠️ Confirmer la suppression</h3>
+                <p>
+                  Êtes-vous sûr de vouloir supprimer le chauffeur <strong>{driverToDelete.name}</strong> ?
+                </p>
+                <div className="form-actions">
+                  <button
+                    onClick={confirmDeleteDriver}
+                    className="btn btn--danger"
+                    disabled={loading.delete}
+                    aria-label={`Confirmer la suppression du chauffeur ${driverToDelete.name}`}
+                  >
+                    {loading.delete ? 'Suppression...' : 'Confirmer'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDeleteConfirmModal(false);
+                      setDriverToDelete(null);
+                    }}
+                    className="btn btn--secondary"
+                    disabled={loading.delete}
+                    aria-label="Annuler la suppression"
+                  >
+                    Annuler
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-      />
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+        />
+      </div>
     </div>
   );
 };

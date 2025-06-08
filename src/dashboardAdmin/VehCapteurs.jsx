@@ -5,14 +5,13 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { FaSearch, FaPlus } from 'react-icons/fa';
-import { Map, Loader } from 'lucide-react';
+import { Map, Loader, AlertCircle, X, Calendar, Clock } from 'lucide-react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import PropTypes from 'prop-types';
 import jwt_decode from 'jwt-decode';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
 
 const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "Consultez et gérez les véhicules de votre groupe" }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -320,9 +319,9 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
         .filter(device => device.groupId === adminGroupId && !device.attributes?.archived)
         .map(device => ({
           id: device.id,
-          name: device.name,
+          name: vehicle.name,
           groupName: adminGroupName,
-          groupId: device.groupId,
+          groupId: vehicle.groupId,
           status: device.status || 'unknown',
           lastUpdate: device.lastUpdate,
           driverName: device.attributes?.chauffeur || '-',
@@ -435,7 +434,7 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
           id: device.id,
           name: device.name,
           groupName: adminGroupName,
-          groupId: device.groupId,
+          groupId: vehicle.groupId,
           status: device.status || 'unknown',
           lastUpdate: device.lastUpdate,
           driverName: device.attributes?.chauffeur || '-',
@@ -538,58 +537,74 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
   const totalPages = Math.ceil(filteredVehicles.length / vehiclesPerPage);
 
   // Gestion du trajet
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFormError(null);
-    setLoading(prev => ({ ...prev, positions: true }));
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setFormError(null);
+  setLoading(prev => ({ ...prev, positions: true }));
 
+  try {
     const formData = new FormData(e.target);
-    const fromLocal = new Date(`${formData.get("fromDate")}T${formData.get("fromTime")}`);
-    const toLocal = new Date(`${formData.get("toDate")}T${formData.get("toTime")}`);
-    const fromUTC = new Date(fromLocal.getTime()).toISOString();
-    const toUTC = new Date(toLocal.getTime()).toISOString();
+    const fromDate = formData.get("fromDate");
+    const toDate = formData.get("toDate");
+    const fromTime = formData.get("fromTime");
+    const toTime = formData.get("toTime");
 
-    try {
-      const traccarDevices = await axios.get(`${TRACCAR_API}/devices`, {
-        auth: TRACCAR_AUTH,
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      });
-
-      const matchedDevice = traccarDevices.data.find(
-        device => device.name.toLowerCase() === selectedVehicle.name.toLowerCase()
-      );
-
-      if (!matchedDevice) {
-        throw new Error('Véhicule non trouvé dans Traccar');
-      }
-
-      const response = await axios.get(`${TRACCAR_API}/reports/route`, {
-        params: { deviceId: matchedDevice.id, from: fromUTC, to: toUTC },
-        auth: TRACCAR_AUTH,
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      });
-
-      const positions = response.data.map(pos => ({
-        ...pos,
-        timestamp: pos.timestamp ? new Date(pos.timestamp).toISOString() : null,
-      }));
-
-      navigate('/trajet', {
-        state: { positions, vehicleName: selectedVehicle.name, period: { from: fromUTC, to: toUTC } },
-      });
-    } catch (err) {
-      console.error('Erreur lors du chargement du trajet:', err);
-      setFormError('Erreur lors du chargement du trajet: ' + err.message);
-    } finally {
-      setLoading(prev => ({ ...prev, positions: false }));
+    // Validate dates
+    if (fromDate > toDate) {
+      throw new Error("La date de début ne peut pas être postérieure à la date de fin.");
     }
-  };
+
+    // Validate times if dates are the same
+    if (fromDate === toDate && fromTime > toTime) {
+      throw new Error("L'heure de début ne peut pas être postérieure à l'heure de fin pour la même date.");
+    }
+
+    // Construct dates
+    const fromLocal = new Date(`${fromDate}T${fromTime}`); // Fixed: use fromTime
+    const toLocal = new Date(`${toDate}T${toTime}`);
+    const fromUTC = fromLocal.toISOString();
+    const toUTC = toLocal.toISOString();
+
+    const traccarDevices = await axios.get(`${TRACCAR_API}/devices`, {
+      auth: TRACCAR_AUTH,
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    });
+
+    const matchedDevice = traccarDevices.data.find(
+      device => device.name.toLowerCase() === selectedVehicle.name.toLowerCase()
+    );
+
+    if (!matchedDevice) {
+      throw new Error('Véhicule non trouvé dans Traccar');
+    }
+
+    const response = await axios.get(`${TRACCAR_API}/reports/route`, {
+      params: { deviceId: matchedDevice.id, from: fromUTC, to: toUTC },
+      auth: TRACCAR_AUTH,
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    });
+
+    const positions = response.data.map(pos => ({
+      ...pos,
+      timestamp: pos.timestamp ? new Date(pos.timestamp).toISOString() : null,
+    }));
+
+    navigate('/trajet', {
+      state: { positions, vehicleName: selectedVehicle.name, period: { from: fromUTC, to: toUTC } },
+    });
+  } catch (err) {
+    console.error('Erreur lors du chargement du trajet:', err);
+    setFormError(err.message);
+  } finally {
+    setLoading(prev => ({ ...prev, positions: false }));
+  }
+};
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   return (
-    <>
-      <style>
+    <div className={`dashboard-admin ${showDeleteModal || showAddVehicleModal || showEditVehicleModal || showAddDriverModal || showArchiveModal ? "blurred" : ""}`}>
+        <style>
         {`
           /* CSS Reset */
           * {
@@ -691,7 +706,7 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
           /* Modal Content */
           .modal-content {
             width: 90%;
-            max-width: 800px;
+            max-width: 600px;
             max-height: 90vh;
             background: var(--bg-color);
             border-radius: var(--radius-lg);
@@ -720,149 +735,318 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
             color: var(--text-color);
           }
 
-          /* Device Form Container */
-          .device-form-container {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-          }
+          /* Modal Wrapper */
+.modal-wrapper {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
 
-          .device-header {
-            
-            text-align: center;
-            margin-bottom: 1rem;
-          }
+.modal-wrapper.active {
+  opacity: 1;
+  visibility: visible;
+}
 
-          .device-header h2 {
-            font-size: 1.75rem;
-            color: var(--text-color);
-            margin-bottom: 0.5rem;
-          }
+/* Modal Content */
+.modal-content {
+  width: 90%;
+  max-width: clamp(500px, 80vw, 600px);
+  max-height: 90vh;
+  background: var(--bg-color, #ffffff);
+  border-radius: var(--radius-md, 0.75rem);
+  box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.12));
+  overflow-y: auto;
+  animation: modalAppear 0.4s ease forwards;
+  position: relative;
+  padding: clamp(1.5rem, 3vw, 2rem);
+}
 
-          .device-decoration {
-            width: 60px;
-            height: 4px;
-            background: var(--primary-gradient);
-            margin: 0 auto;
-            border-radius: var(--radius-sm);
-          }
+/* Modal Close Button */
+.modal-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: var(--text-light, #8d99ae);
+  cursor: pointer;
+  font-size: 1.5rem;
+  transition: color 0.2s ease;
+}
 
-          .device-form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-          }
+.modal-close-btn:hover {
+  color: var(--text-color, #2b2d42);
+}
 
-          .device-form-group label {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--text-color);
-          }
+/* Modal Header */
+.modal-header {
+  text-align: center;
+  margin-bottom: clamp(1rem, 2vw, 1.5rem);
+}
 
-          .required-field::after {
-            content: '*';
-            color: var(--danger-color);
-            margin-left: 0.25rem;
-          }
+.modal-header h3 {
+  font-size: clamp(1.5rem, 4vw, 1.75rem);
+  font-weight: 700;
+  color: var(--text-primary, #2b2d42);
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+}
 
-          .device-form-group input,
-          .device-form-group select {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm);
-            font-size: 1rem;
-            background: var(--bg-light);
-            transition: var(--transition);
-          }
+.modal-header p {
+  font-size: clamp(0.9rem, 2vw, 1rem);
+  color: var(--text-secondary, #6b7280);
+}
 
-          .device-form-group input:focus,
-          .device-form-group select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(15, 23, 56, 0.1);
-          }
+/* Map Form */
+.map-form-container {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 3vw, 2rem);
+}
 
-          .device-form-group input:disabled,
-          .device-form-group select:disabled {
-            background: var(--bg-dark);
-            cursor: not-allowed;
-          }
+.map-form {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 2vw, 1.5rem);
+}
 
-          .driver-add-btn {
-            padding: 0.5rem;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            transition: var(--transition);
-          }
+/* Form Grid */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(220px, 45vw, 260px), 1fr));
+  gap: clamp(1rem, 2vw, 1.5rem);
+}
 
-          .driver-add-btn:hover {
-            background: var(--primary-light);
-          }
+/* Form Group */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
 
-          /* Form Grid */
-          .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-          }
+/* Form Label */
+.form-label {
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
+  font-weight: 600;
+  color: var(--text-secondary, #4b5563);
+  line-height: 1.5;
+}
 
-          /* Form Actions */
-          .form-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 1rem;
-            padding-top: 1rem;
-          }
+.required::after {
+  content: '*';
+  color: var(--danger-color,rgb(138, 156, 244));
+  margin-left: 0.25rem;
+}
 
-          /* Map Form */
-          .map-form {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            padding: 1.5rem;
-          }
+/* Input Group */
+.input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
 
-          .map-form h3 {
-            font-size: 1.5rem;
-            color: var(--text-color);
-            font-weight: 600;
-            text-align: center;
-            margin-bottom: 1rem;
-          }
+.form-input {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 clamp(0.75rem, 2vw, 1rem);
+  background: var(--input-bg, #f9fafb);
+  border-radius: var(--radius-sm, 0.5rem);
+  font-size: clamp(0.9rem, 2vw, 0.95rem);
+  color: var(--text-primary, #111111);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  padding-right: 2.5rem; /* Space for icon */
+}
 
-          .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-          }
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-color, #0f1738);
+  box-shadow: 0 0 0 3px rgba(15, 23, 56, 0.15);
+}
 
-          .form-group label {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: var(--text-color);
-          }
+.form-input:disabled {
+  background: var(--input-disabled-bg, #e5e7eb);
+  border-color: var(--border-disabled, #d1d5db);
+  color: var(--text-disabled, #6b7280);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
 
-          .form-group input {
-            height: 2.5rem;
-            padding: 0 1rem;
-            background: var(--bg-light);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-sm);
-            font-size: 0.875rem;
-            color: var(--text-color);
-            transition: var(--transition);
-          }
 
-          .form-group input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(15, 23, 56, 0.1);
-          }
 
+/* Input Icon */
+.input-icon {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-light, #8d99ae);
+  pointer-events: none;
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+/* Buttons */
+.btn {
+  padding: 0.75rem clamp(1rem, 2vw, 1.5rem);
+  border-radius: var(--radius-sm, 0.5rem);
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-primary {
+  background: var(--primary-color, #0f1738);
+  color: var(--bg-color, #ffffff);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-light, #14275c);
+  box-shadow: var(--shadow-sm, 0 2px 10px rgba(0, 0, 0, 0.05));
+}
+
+.btn-secondary {
+  background: var(--bg-light, #f8f9fa);
+  color: var(--text-color, #2b2d42);
+  border: 1px solid var(--border-color, #e0e0e0);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-dark, #edf2f4);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Spinner */
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--bg-color, #ffffff);
+  border-radius: 50%;
+  animation: spinner 0.8s linear infinite;
+}
+
+/* Alert */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm, 0.5rem);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  animation: slideDown 0.3s ease;
+}
+
+.alert-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger-color, #ef4444);
+  border-left: 4px solid var(--danger-color, #ef4444);
+}
+
+.alert-icon {
+  flex-shrink: 0;
+}
+
+.alert-message {
+  flex: 1;
+  font-size: clamp(0.85rem, 2vw, 0.9rem);
+}
+
+.alert-close-btn {
+  background: none;
+  border: none;
+  color: var(--danger-color, #ef4444);
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+  .modal-content {
+    width: 95%;
+    padding: 1rem;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+  .modal-content {
+    background: #ffffff;
+    border: 2px solid #000000;
+    box-shadow: none;
+  }
+
+  .form-input {
+    border: 2px solid #000000;
+    background: #ffffff;
+    color: #000000;
+  }
+
+  .form-input:focus {
+    border-color: #0000ff;
+    box-shadow: 0 0 0 3px #0000ff;
+  }
+
+  .btn-primary {
+    background: #000000;
+    color: #ffffff;
+  }
+
+  .btn-secondary {
+    background: #ffffff;
+    color: #000000;
+    border: 2px solid #000000;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .modal-wrapper,
+  .modal-content,
+  .form-input,
+  .btn {
+    transition: none;
+  }
+
+  .alert {
+    animation: none;
+  }
+}
           /* Buttons */
           .btn-primary,
           .btn-secondary,
@@ -878,6 +1062,8 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
+            background: var(--primary-color);
+            color: white;
           }
 
           .btn-primary,
@@ -952,8 +1138,7 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
             border-left: 4px solid var(--danger-color);
           }
 
-          .alert button,
-          .device-message button {
+          .alert button {
             background: none;
             border: none;
             font-size: 1rem;
@@ -986,22 +1171,19 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
             box-shadow: var(--shadow-md);
             overflow: hidden;
             margin: 1.5rem 0;
-            
           }
 
           .vehicles-table thead {
             background: rgba(15, 23, 56, 0.1);
-            
           }
 
           .vehicles-table th {
             padding: 0.75rem 1rem;
-           color: black;
+            color: var(--text-color);
             font-weight: 600;
             font-size: 0.75rem;
             text-transform: uppercase;
             text-align: left;
-            background: ;
           }
 
           .vehicles-table tbody tr {
@@ -1027,7 +1209,20 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
             text-transform: capitalize;
           }
 
-        
+          .status-badge.online {
+            background: rgba(38, 122, 73, 0.89);
+            color: white;
+          }
+
+          .status-badge.offline {
+            background: rgba(230, 57, 70, 0.2);
+            color: var(--danger-color);
+          }
+
+          .status-badge.unknown {
+            background: rgba(248, 150, 30, 0.2);
+            color: var(--warning-color);
+          }
 
           .actions-cell {
             text-align: center;
@@ -1059,30 +1254,33 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
             color: var(--danger-color);
           }
 
-          /* Pagination */
-          
+          .action-btn.map:hover {
+            background: rgba(76, 201, 240, 0.1);
+            color: var(--success-color);
+          }
 
-      .pagination {
+          /* Pagination */
+          .pagination {
             display: flex;
             justify-content: center;
             align-items: center;
-            margin-top: 20px;
-            gap: 15px;
+            margin-top: 1.5rem;
+            gap: 1rem;
           }
 
           .pagination button {
-            padding: 8px 15px;
-            background-color: #1b1646;
+            padding: 0.5rem 1rem;
+            background: var(--primary-color);
             color: white;
-            border: 1px solid var(--border-color);
+            border: none;
             border-radius: var(--radius-sm);
             cursor: pointer;
-            font-size: 14px;
+            font-size: 0.875rem;
             transition: var(--transition);
           }
 
           .pagination button:hover:not(:disabled) {
-            background-color: #1a103e;
+            background: var(--primary-light);
           }
 
           .pagination button:disabled {
@@ -1091,11 +1289,11 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
           }
 
           .pagination span {
-            padding: 8px 15px;
-            background-color: #e7edf1;
-            color: #201b39;
+            padding: 0.5rem 1rem;
+            background: var(--bg-light);
+            color: var(--text-color);
             border-radius: var(--radius-sm);
-            font-size: 14px;
+            font-size: 0.875rem;
           }
 
           /* Dashboard Layout */
@@ -1138,29 +1336,38 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
 
           /* Container */
           .container2 {
-          padding: 50px;
             max-width: 1200px;
             margin: 0 auto;
-            shadow: var(--shadow-sm)
+            padding: 1rem;
           }
 
-          /* Header */
-          .header {
-            margin-bottom: 2rem;
-            animation: slideIn 0.5s ease;
-          }
+          .container2 {
+          max-width: 1200px;
+          margin: 0 auto;
+          margin-top: 2rem;
+        }
 
-          .header h2 {
-            font-size: 1.75rem;
-            font-weight: 600;
-            color: var(--text-color);
-          }
+        .header {
+          background: var(--card-background);
+          padding: 1.5rem;
+          border-radius: var(--border-radius);
+          box-shadow: var(--shadow-sm);
+          margin-bottom: 2rem;
+          margin-top: 1rem;
+        }
 
-          .header p {
-            font-size: 0.875rem;
-            color: var(--text-light);
-            margin-top: 0.5rem;
-          }
+        .header h2 {
+          font-size: 1.75rem;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin: 0;
+        }
+
+        .header p {
+          font-size: 0.875rem;
+          color: var(--text-secondary);
+          margin: 0.5rem 0 0;
+        }
 
           /* Filter Bar */
           .filter-bar {
@@ -1232,6 +1439,84 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
             padding: 2rem;
           }
 
+          /* Device Form Styles */
+          .device-form-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+          }
+
+          .device-header {
+            text-align: center;
+            margin-bottom: 1rem;
+          }
+
+          .device-header h2 {
+            font-size: 1.75rem;
+            color: var(--text-color);
+            margin-bottom: 0.5rem;
+          }
+
+          .device-decoration {
+            width: 60px;
+            height: 4px;
+            background: var(--primary-gradient);
+            margin: 0 auto;
+            border-radius: var(--radius-sm);
+          }
+
+          .device-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+          }
+
+          .device-form-group label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-color);
+          }
+
+          .required-field::after {
+            content: '*';
+            color: var(--danger-color);
+            margin-left: 0.25rem;
+          }
+
+          .device-form-group input,
+          .device-form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            background: var(--bg-light);
+            transition: var(--transition);
+          }
+
+          .device-form-group input:focus,
+          .device-form-group select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(15, 23, 56, 0.1);
+          }
+
+          .device-form-section {
+            margin-bottom: 1.5rem;
+          }
+
+          .section-title {
+            font-size: 1.1rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+          }
+
+          .message-icon {
+            font-size: 1.2rem;
+          }
+
           /* Dark Mode */
           @media (prefers-color-scheme: dark) {
             :root {
@@ -1255,16 +1540,18 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
               background: var(--bg-light);
             }
 
+            .form-group input,
+            .status-select,
             .device-form-group input,
-            .device-form-group select,
-            .form-group input {
+            .device-form-group select {
               background: var(--bg-light);
               color: var(--text-color);
             }
 
+            .form-group input:focus,
+            .status-select:focus,
             .device-form-group input:focus,
-            .device-form-group select:focus,
-            .form-group input:focus {
+            .device-form-group select:focus {
               background: var(--bg-color);
             }
           }
@@ -1311,30 +1598,27 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
           }
         `}
       </style>
+      <button className="toggle-btn" onClick={toggleSidebar}>
+        {isSidebarOpen ? '✕' : '☰'}
+      </button>
 
-      <div className={`dashboard-admin ${showDeleteModal || showAddVehicleModal || showEditVehicleModal || showAddDriverModal || showArchiveModal ? "blurred" : ""}`}>
-        <button className="toggle-btn" onClick={toggleSidebar}>
-          {isSidebarOpen ? '✕' : '☰'}
-        </button>
+      <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
-        <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+      <div className="main-content">
+        <Navbar />
 
-        <div className="main-content">
-          <Navbar />
-
-          <div className="container2">
-            <div className="header">
-              <h2>{title}</h2>
-              <p>{description}</p>
-            </div>
-
+        <div className="container2">
+          <div className="header">
+            <h2>{title}</h2>
+            <p>{description}</p>
+            <br />
             <div className="filter-bar">
               <button
                 className="group-btn primary"
                 onClick={() => setShowAddVehicleModal(true)}
                 disabled={loading.vehicles || !adminGroupId}
               >
-                Ajouter un véhicule
+                Ajouter
               </button>
               <label htmlFor="statusSelect">Filtrer par statut :</label>
               <select
@@ -1349,113 +1633,117 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
                 <option value="unknown">Unknown</option>
               </select>
             </div>
-
-            <div className="search-container">
-              <FaSearch className="search-icon" />
-              <input
-                type="text"
-                placeholder="Rechercher par nom, ID ou chauffeur..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="search-input"
-              />
-            </div>
           </div>
 
-          {error && (
-            <div className="alert error">
-              {error}
-              <button onClick={() => setError(null)}>×</button>
-            </div>
-          )}
+          <div className="search-container">
+            <FaSearch className="search-icon" />
+            <input
+              type="text"
+              placeholder="Rechercher par nom, ID ou chauffeur..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="search-input"
+            />
+          </div>
+        </div>
 
-          {loading.vehicles ? (
-            <div className="loading">Chargement des véhicules...</div>
-          ) : filteredVehicles.length === 0 ? (
-            <div className="no-results">
-              Aucun véhicule trouvé {searchTerm && `pour "${searchTerm}"`}
-            </div>
-          ) : (
-            <>
-              <table className="vehicles-table">
-                <thead>
-                  <tr>
-                    <th>Immatriculation</th>
-                    <th>ID</th>
-                    <th>Groupe</th>
-                    <th>Chauffeur</th>
-                    <th>Status</th>
-                    <th className="actions-column">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentVehicles.map(vehicle => (
-                    <tr key={vehicle.id}>
-                      <td>{vehicle.name}</td>
-                      <td>{vehicle.id}</td>
-                      <td>{vehicle.groupName}</td>
-                      <td>{vehicle.driverName}</td>
-                      <td>
-                        <span
-                          className={`status-badge ${
-                            vehicle.status === 'online' ? 'online' : 
-                            vehicle.status === 'offline' ? 'offline' : 'unknown'
-                          }`}
+        {error && (
+          <div className="alert error">
+            {error}
+            <button onClick={() => setError(null)}>×</button>
+          </div>
+        )}
+
+        {loading.vehicles ? (
+          <div className="loading">Chargement des véhicules...</div>
+        ) : filteredVehicles.length === 0 ? (
+          <div className="no-results">
+            Aucun véhicule trouvé {searchTerm && `pour "${searchTerm}"`}
+          </div>
+        ) : (
+          <>
+            <table className="vehicles-table">
+              <thead>
+                <tr>
+                  <th>Immatriculation</th>
+                  <th>ID</th>
+                  <th>Groupe</th>
+                  <th>Chauffeur</th>
+                  <th>Status</th>
+                  <th className="actions-column">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentVehicles.map(vehicle => (
+                  <tr key={vehicle.id}>
+                    <td>{vehicle.name}</td>
+                    <td>{vehicle.id}</td>
+                    <td>{vehicle.groupName}</td>
+                    <td>{vehicle.driverName}</td>
+                    <td>
+                      <span
+                        className={`status-badge ${
+                          vehicle.status === 'online' ? 'online' : 
+                          vehicle.status === 'offline' ? 'offline' : 'unknown'
+                        }`}
+                      >
+                        {vehicle.status || 'inconnu'}
+                      </span>
+                    </td>
+                    <td className="actions-cell">
+                      <div className="action-buttons">
+                        <button
+                          className="action-btn edit"
+                          onClick={() => {
+                            setEditVehicleForm({
+                              id: vehicle.id,
+                              name: vehicle.name,
+                              uniqueId: vehicle.originalData.uniqueId,
+                              groupId: vehicle.groupId?.toString() || adminGroupId?.toString() || '',
+                              driverId: vehicle.attributes?.chauffeur
+                                ? drivers.find(d => d.name === vehicle.attributes.chauffeur)?.id.toString() || ''
+                                : '',
+                            });
+                            setShowEditVehicleModal(true);
+                          }}
+                          disabled={loading.form || loading.actions}
+                          title="Modifier le véhicule"
+                          aria-label="Modifier"
                         >
-                          {vehicle.status || 'inconnu'}
-                        </span>
-                      </td>
-                      <td className="actions-cell">
-                        <div className="action-buttons">
-                          <button
-                            className="action-btn edit"
-                            onClick={() => {
-                              setEditVehicleForm({
-                                id: vehicle.id,
-                                name: vehicle.name,
-                                uniqueId: vehicle.originalData.uniqueId,
-                                groupId: vehicle.groupId?.toString() || adminGroupId?.toString() || '',
-                                driverId: vehicle.attributes?.chauffeur
-                                  ? drivers.find(d => d.name === vehicle.attributes.chauffeur)?.id.toString() || ''
-                                  : '',
-                              });
-                              setShowEditVehicleModal(true);
-                            }}
-                            disabled={loading.form || loading.actions}
-                            title="Modifier le véhicule"
-                            aria-label="Modifier"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            className="action-btn delete"
-                            onClick={() => {
-                              setVehicleToArchive({ id: vehicle.id, name: vehicle.name });
-                              setShowArchiveModal(true);
-                            }}
-                            disabled={loading.form || loading.actions}
-                            title="Archiver le véhicule"
-                            aria-label="Archiver"
-                          >
-                            🗑️
-                          </button>
-                          <button
-                            className="action-btn edit"
-                            onClick={() => setSelectedVehicle(vehicle)}
-                            disabled={loading.positions}
-                            title="Voir le trajet"
-                            aria-label="Trajet"
-                          >
-                            🗺️
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          ✏️
+                        </button>
+                        <button
+                          className="action-btn delete"
+                          onClick={() => {
+                            setVehicleToArchive({ id: vehicle.id, name: vehicle.name });
+                            setShowArchiveModal(true);
+                          }}
+                          disabled={loading.form || loading.actions}
+                          title="Archiver le véhicule"
+                          aria-label="Archiver"
+                        >
+                          🗑️
+                        </button>
+                        <button
+                          className="action-btn map"
+                           onClick={() => {
+    setSelectedVehicle(vehicle);
+    setFormError(null); 
+  }}
+                          disabled={loading.positions}
+                          title="Voir le trajet"
+                          aria-label="Trajet"
+                        >
+                          🗺️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-              {totalPages > 1 && (
+            {totalPages > 1 && (
               <div className="pagination">
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -1474,74 +1762,324 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
                 </button>
               </div>
             )}
-            </>
-          )}
+          </>
+        )}
+      </div>
+
+      {selectedVehicle && (
+  <div className="modal-wrapper active">
+    <div className="modal-content">
+      <button
+        className="modal-close-btn"
+         onClick={() => {
+    setSelectedVehicle(null);
+    setFormError(null); // Ajoutez cette ligne
+  }}
+        aria-label="Fermer la modale"
+      >
+        <X size={24} />
+      </button>
+      <div className="map-form-container">
+        <div className="modal-header">
+          <h3>Consultation de trajet</h3>
+          <p>
+            Véhicule: <strong>{selectedVehicle.name}</strong>
+          </p>
         </div>
 
-        {selectedVehicle && (
-          <div className="modal-overlay active">
-            <div className="modal-content">
-              <button
-                className="modal-close-btn"
-                onClick={() => setSelectedVehicle(null)}
-                aria-label="Fermer la modale"
-              >
-                ×
-              </button>
-              <form className="map-form" onSubmit={handleSubmit}>
-                <h3>Trajet du véhicule: {selectedVehicle.name}</h3>
-                {formError && (
-                  <div className="alert error">
-                    {formError}
-                    <button onClick={() => setFormError(null)} type="button">×</button>
-                  </div>
-                )}
-                <div className="form-grid">
-                  {['fromDate', 'toDate'].map(field => (
-                    <div key={field} className="form-group">
-                      <label htmlFor={field}>
-                        {field === 'fromDate' ? 'Date de début' : 'Date de fin'}
-                      </label>
-                      <input
-                        type="date"
-                        id={field}
-                        name={field}
-                        required
-                        disabled={loading.positions}
-                        max={new Date().toISOString().split('T')[0]}
-                      />
-                    </div>
-                  ))}
-                  {['fromTime', 'toTime'].map(field => (
-                    <div key={field} className="form-group">
-                      <label htmlFor={field}>
-                        {field === 'fromTime' ? 'Heure de début' : 'Heure de fin'}
-                      </label>
-                      <input
-                        type="time"
-                        id={field}
-                        name={field}
-                        required
-                        disabled={loading.positions}
-                      />
-                    </div>
-                  ))}
+        {formError && (
+  <div className="alert alert-error">
+    <AlertCircle className="alert-icon" size={20} />
+    <span className="alert-message">{formError}</span>
+    <button
+      onClick={() => setFormError(null)}
+      type="button"
+      className="alert-close-btn"
+    >
+      <X size={16} />
+    </button>
+  </div>
+)}
+
+        <form className="map-form" onSubmit={handleSubmit}>
+          <div className="form-grid">
+            <div className="form-group">
+              <label htmlFor="fromDate" className="form-label">
+                Date de début <span className="required">*</span>
+              </label>
+              <div className="input-group">
+                <input
+                  type="date"
+                  id="fromDate"
+                  name="fromDate"
+                  required
+                  disabled={loading.positions}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="form-input"
+                />
+                <Calendar className="input-icon" size={20} />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="toDate" className="form-label">
+                Date de fin <span className="required">*</span>
+              </label>
+              <div className="input-group">
+                <input
+                  type="date"
+                  id="toDate"
+                  name="toDate"
+                  required
+                  disabled={loading.positions}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="form-input"
+                />
+                <Calendar className="input-icon" size={20} />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="fromTime" className="form-label">
+                Heure de début <span className="required">*</span>
+              </label>
+              <div className="input-group">
+                <input
+                  type="time"
+                  id="fromTime"
+                  name="fromTime"
+                  required
+                  disabled={loading.positions}
+                  className="form-input"
+                />
+                <Clock className="input-icon" size={20} />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="toTime" className="form-label">
+                Heure de fin <span className="required">*</span>
+              </label>
+              <div className="input-group">
+                <input
+                  type="time"
+                  id="toTime"
+                  name="toTime"
+                  required
+                  disabled={loading.positions}
+                  className="form-input"
+                />
+                <Clock className="input-icon" size={20} />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading.positions}
+            >
+              {loading.positions ? (
+                <>
+                  <Loader className="spinner" size={16} />
+                  Chargement...
+                </>
+              ) : (
+                <>
+                  <Map size={16} />
+                  Visualiser
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setSelectedVehicle(null)}
+              disabled={loading.positions}
+            >
+              <X size={16} />
+              Annuler
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+)}
+
+      {showAddVehicleModal && (
+        <div className="modal-overlay active">
+          <div className="modal-content">
+            <button
+              className="modal-close-btn"
+              onClick={() => setShowAddVehicleModal(false)}
+              aria-label="Fermer la modale"
+            >
+              <X size={24} />
+            </button>
+            <div className="device-form-container">
+              <div className="device-header">
+                <h2>Ajouter un véhicule</h2>
+                <div className="device-decoration"></div>
+              </div>
+
+              {formError && (
+                <div className="device-message error">
+                  <AlertCircle className="message-icon" size={20} />
+                  <p>{formError}</p>
                 </div>
+              )}
+
+              <form onSubmit={handleVehicleFormSubmit}>
+                <div className="device-form-section">
+                  <h3 className="section-title">Informations principales</h3>
+                  <div className="form-grid">
+                    <div className="device-form-group">
+                      <label className="required-field">Nom</label>
+                      <input
+                        type="text"
+                        name="name"
+                        required
+                        value={vehicleForm.name}
+                        onChange={handleVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Entrez le nom du véhicule"
+                      />
+                    </div>
+
+                    <div className="device-form-group">
+                      <label className="required-field">Identifiant unique</label>
+                      <input
+                        type="text"
+                        name="uniqueId"
+                        required
+                        value={vehicleForm.uniqueId}
+                        onChange={handleVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="ID ou matricule"
+                      />
+                    </div>
+
+                    <div className="device-form-group">
+                      <label className="required-field">Groupe</label>
+                      <select
+                        name="groupId"
+                        value={vehicleForm.groupId || adminGroupId || ''}
+                        onChange={handleVehicleFormChange}
+                        disabled={loading.form || !adminGroupId}
+                        required
+                      >
+                        <option value="">Sélectionnez un groupe</option>
+                        {groups.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="device-form-group">
+                      <label>Chauffeur</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <select
+                          name="driverId"
+                          value={vehicleForm.driverId}
+                          onChange={handleVehicleFormChange}
+                          disabled={drivers.length === 0 || loading.form}
+                        >
+                          <option value="">Sélectionner un chauffeur</option>
+                          {drivers.map((driver) => (
+                            <option key={driver.id} value={driver.id}>
+                              {driver.name} ({driver.uniqueId})
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="driver-add-btn"
+                          onClick={() => setShowAddDriverModal(true)}
+                          disabled={loading.form}
+                          title="Ajouter un chauffeur"
+                        >
+                          <FaPlus size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="device-form-section">
+                  <h3 className="section-title">Informations complémentaires</h3>
+                  <div className="form-grid">
+                    <div className="device-form-group">
+                      <label>Catégorie</label>
+                      <input
+                        type="text"
+                        name="category"
+                        value={vehicleForm.category || ''}
+                        onChange={handleVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Catégorie du véhicule"
+                      />
+                    </div>
+
+                    <div className="device-form-group">
+                      <label>Modèle</label>
+                      <input
+                        type="text"
+                        name="model"
+                        value={vehicleForm.model || ''}
+                        onChange={handleVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Modèle du véhicule"
+                      />
+                    </div>
+
+                    <div className="device-form-group">
+                      <label>Téléphone (SIM)</label>
+                      <input
+                        type="text"
+                        name="phone"
+                        value={vehicleForm.phone || ''}
+                        onChange={handleVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Numéro de téléphone"
+                      />
+                    </div>
+
+                    <div className="device-form-group">
+                      <label>Contact</label>
+                      <input
+                        type="text"
+                        name="contact"
+                        value={vehicleForm.contact || ''}
+                        onChange={handleVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Personne à contacter"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="form-actions">
-                  <button type="submit" className="btn-primary" disabled={loading.positions}>
-                    {loading.positions ? (
+                  <button
+                    type="submit"
+                    disabled={loading.form}
+                    className="device-submit-btn"
+                  >
+                    {loading.form ? (
                       <>
-                        <span className="spinner-btn"></span> Chargement...
+                        <Loader className="loading-spinner" size={20} />
+                        Envoi en cours...
                       </>
-                    ) : (
-                      'Visualiser le trajet'
-                    )}
+                    ) : "Ajouter le véhicule"}
                   </button>
                   <button
                     type="button"
                     className="btn-secondary"
-                    onClick={() => setSelectedVehicle(null)}
-                    disabled={loading.positions}
+                    onClick={() => setShowAddVehicleModal(false)}
+                    disabled={loading.form}
                   >
                     Annuler
                   </button>
@@ -1549,501 +2087,319 @@ const VehCap = ({ statusFilter, title = "Liste des Véhicules", description = "C
               </form>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {showAddVehicleModal && (
-          <div className="modal-overlay active">
-            <div className="modal-content">
-              <button
-                className="modal-close-btn"
-                onClick={() => setShowAddVehicleModal(false)}
-                aria-label="Fermer la modale"
-              >
-                ×
-              </button>
-              <div className="device-form-container">
-                <div className="device-header">
-                  <h2>Ajouter un véhicule</h2>
-                  <div className="device-decoration"></div>
+      {showEditVehicleModal && (
+        <div className="modal-overlay active">
+          <div className="modal-content">
+            <button
+              className="modal-close-btn"
+              onClick={() => setShowEditVehicleModal(false)}
+              aria-label="Fermer la modale"
+            >
+              <X size={24} />
+            </button>
+            <div className="device-form-container">
+              <div className="device-header">
+                <h2>Modifier le véhicule</h2>
+                <div className="device-decoration"></div>
+              </div>
+
+              {formError && (
+                <div className="device-message error">
+                  <AlertCircle className="message-icon" size={20} />
+                  <p>{formError}</p>
                 </div>
+              )}
 
-                {formError && (
-                  <div className="device-message error">
-                    <span className="message-icon">❌</span>
-                    <p>{formError}</p>
-                  </div>
-                )}
+              <form onSubmit={handleEditVehicleFormSubmit}>
+                <div className="device-form-section">
+                  <h3 className="section-title">Informations principales</h3>
+                  <div className="form-grid">
+                    <div className="device-form-group">
+                      <label className="required-field">Nom</label>
+                      <input
+                        type="text"
+                        name="name"
+                        required
+                        value={editVehicleForm.name}
+                        onChange={handleEditVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Entrez le nom du véhicule"
+                      />
+                    </div>
 
-                <form onSubmit={handleVehicleFormSubmit}>
-                  <div className="device-form-section">
-                    <h3 className="section-title">Informations principales</h3>
-                    <div className="form-grid">
-                      <div className="device-form-group">
-                        <label className="required-field">Nom</label>
-                        <input
-                          type="text"
-                          name="name"
-                          required
-                          value={vehicleForm.name}
-                          onChange={handleVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="Entrez le nom du véhicule"
-                        />
-                      </div>
+                    <div className="device-form-group">
+                      <label className="required-field">Identifiant unique</label>
+                      <input
+                        type="text"
+                        name="uniqueId"
+                        required
+                        value={editVehicleForm.uniqueId}
+                        onChange={handleEditVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="ID ou matricule"
+                      />
+                    </div>
 
-                      <div className="device-form-group">
-                        <label className="required-field">Identifiant unique</label>
-                        <input
-                          type="text"
-                          name="uniqueId"
-                          required
-                          value={vehicleForm.uniqueId}
-                          onChange={handleVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="ID ou matricule"
-                        />
-                      </div>
+                    <div className="device-form-group">
+                      <label className="required-field">Groupe</label>
+                      <select
+                        name="groupId"
+                        value={editVehicleForm.groupId || adminGroupId || ''}
+                        onChange={handleEditVehicleFormChange}
+                        disabled={loading.form || !adminGroupId}
+                        required
+                      >
+                        <option value="">Sélectionnez un groupe</option>
+                        {groups.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                      <div className="device-form-group">
-                        <label className="required-field">Groupe</label>
+                    <div className="device-form-group">
+                      <label>Chauffeur</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
                         <select
-                          name="groupId"
-                          value={vehicleForm.groupId || adminGroupId || ''}
-                          onChange={handleVehicleFormChange}
-                          disabled={loading.form || !adminGroupId}
-                          required
+                          name="driverId"
+                          value={editVehicleForm.driverId}
+                          onChange={handleEditVehicleFormChange}
+                          disabled={drivers.length === 0 || loading.form}
                         >
-                          <option value="">Sélectionnez un groupe</option>
-                          {groups.map((group) => (
-                            <option key={group.id} value={group.id}>
-                              {group.name}
+                          <option value="">Sélectionner un chauffeur</option>
+                          {drivers.map((driver) => (
+                            <option key={driver.id} value={driver.id}>
+                              {driver.name} ({driver.uniqueId})
                             </option>
                           ))}
                         </select>
-                      </div>
-
-                      <div className="device-form-group">
-                        <label>Chauffeur</label>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <select
-                            name="driverId"
-                            value={vehicleForm.driverId}
-                            onChange={handleVehicleFormChange}
-                            disabled={drivers.length === 0 || loading.form}
-                          >
-                            <option value="">Sélectionner un chauffeur</option>
-                            {drivers.map((driver) => (
-                              <option key={driver.id} value={driver.id}>
-                                {driver.name} ({driver.uniqueId})
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="driver-add-btn"
-                            onClick={() => setShowAddDriverModal(true)}
-                            disabled={loading.form}
-                            title="Ajouter un chauffeur"
-                          >
-                            <FaPlus size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="device-form-section">
-                    <h3 className="section-title">Informations complémentaires</h3>
-                    <div className="form-grid">
-                      <div className="device-form-group">
-                        <label>Catégorie</label>
-                        <input
-                          type="text"
-                          name="category"
-                          value={vehicleForm.category || ''}
-                          onChange={handleVehicleFormChange}
+                        <button
+                          type="button"
+                          className="driver-add-btn"
+                          onClick={() => setShowAddDriverModal(true)}
                           disabled={loading.form}
-                          placeholder="Catégorie du véhicule"
-                        />
-                      </div>
-
-                      <div className="device-form-group">
-                        <label>Modèle</label>
-                        <input
-                          type="text"
-                          name="model"
-                          value={vehicleForm.model || ''}
-                          onChange={handleVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="Modèle du véhicule"
-                        />
-                      </div>
-
-                      <div className="device-form-group">
-                        <label>Téléphone (SIM)</label>
-                        <input
-                          type="text"
-                          name="phone"
-                          value={vehicleForm.phone || ''}
-                          onChange={handleVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="Numéro de téléphone"
-                        />
-                      </div>
-
-                      <div className="device-form-group">
-                        <label>Contact</label>
-                        <input
-                          type="text"
-                          name="contact"
-                          value={vehicleForm.contact || ''}
-                          onChange={handleVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="Personne à contacter"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-actions">
-                    <button
-                      type="submit"
-                      disabled={loading.form}
-                      className="device-submit-btn"
-                    >
-                      {loading.form ? (
-                        <>
-                          <Loader className="loading-spinner" size={20} />
-                          Envoi en cours...
-                        </>
-                      ) : "Ajouter le véhicule"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => setShowAddVehicleModal(false)}
-                      disabled={loading.form}
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showEditVehicleModal && (
-          <div className="modal-overlay active">
-            <div className="modal-content">
-              <button
-                className="modal-close-btn"
-                onClick={() => setShowEditVehicleModal(false)}
-                aria-label="Fermer la modale"
-              >
-                ×
-              </button>
-              <div className="device-form-container">
-                <div className="device-header">
-                  <h2>Modifier le véhicule</h2>
-                  <div className="device-decoration"></div>
-                </div>
-
-                {formError && (
-                  <div className="device-message error">
-                    <span className="message-icon">❌</span>
-                    <p>{formError}</p>
-                  </div>
-                )}
-
-                <form onSubmit={handleEditVehicleFormSubmit}>
-                  <div className="device-form-section">
-                    <h3 className="section-title">Informations principales</h3>
-                    <div className="form-grid">
-                      <div className="device-form-group">
-                        <label className="required-field">Nom</label>
-                        <input
-                          type="text"
-                          name="name"
-                          required
-                          value={editVehicleForm.name}
-                          onChange={handleEditVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="Entrez le nom du véhicule"
-                        />
-                      </div>
-
-                      <div className="device-form-group">
-                        <label className="required-field">Identifiant unique</label>
-                        <input
-                          type="text"
-                          name="uniqueId"
-                          required
-                          value={editVehicleForm.uniqueId}
-                          onChange={handleEditVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="ID ou matricule"
-                        />
-                      </div>
-
-                      <div className="device-form-group">
-                        <label className="required-field">Groupe</label>
-                        <select
-                          name="groupId"
-                          value={editVehicleForm.groupId || adminGroupId || ''}
-                          onChange={handleEditVehicleFormChange}
-                          disabled={loading.form || !adminGroupId}
-                          required
+                          title="Ajouter un chauffeur"
                         >
-                          <option value="">Sélectionnez un groupe</option>
-                          {groups.map((group) => (
-                            <option key={group.id} value={group.id}>
-                              {group.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="device-form-group">
-                        <label>Chauffeur</label>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <select
-                            name="driverId"
-                            value={editVehicleForm.driverId}
-                            onChange={handleEditVehicleFormChange}
-                            disabled={drivers.length === 0 || loading.form}
-                          >
-                            <option value="">Sélectionner un chauffeur</option>
-                            {drivers.map((driver) => (
-                              <option key={driver.id} value={driver.id}>
-                                {driver.name} ({driver.uniqueId})
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="driver-add-btn"
-                            onClick={() => setShowAddDriverModal(true)}
-                            disabled={loading.form}
-                            title="Ajouter un chauffeur"
-                          >
-                            <FaPlus size={14} />
-                          </button>
-                        </div>
+                          <FaPlus size={14} />
+                        </button>
                       </div>
                     </div>
                   </div>
-
-                  <div className="device-form-section">
-                    <h3 className="section-title">Informations complémentaires</h3>
-                    <div className="form-grid">
-                      <div className="device-form-group">
-                        <label>Catégorie</label>
-                        <input
-                          type="text"
-                          name="category"
-                          value={editVehicleForm.category || ''}
-                          onChange={handleEditVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="Catégorie du véhicule"
-                        />
-                      </div>
-
-                      <div className="device-form-group">
-                        <label>Modèle</label>
-                        <input
-                          type="text"
-                          name="model"
-                          value={editVehicleForm.model || ''}
-                          onChange={handleEditVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="Modèle du véhicule"
-                        />
-                      </div>
-
-                      <div className="device-form-group">
-                        <label>Téléphone (SIM)</label>
-                        <input
-                          type="text"
-                          name="phone"
-                          value={editVehicleForm.phone || ''}
-                          onChange={handleEditVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="Numéro de téléphone"
-                        />
-                      </div>
-
-                      <div className="device-form-group">
-                        <label>Contact</label>
-                        <input
-                          type="text"
-                          name="contact"
-                          value={editVehicleForm.contact || ''}
-                          onChange={handleEditVehicleFormChange}
-                          disabled={loading.form}
-                          placeholder="Personne à contacter"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="form-actions">
-                    <button
-                      type="submit"
-                      disabled={loading.form}
-                      className="device-submit-btn"
-                    >
-                      {loading.form ? (
-                        <>
-                          <Loader className="loading-spinner" size={20} />
-                          Envoi en cours...
-                        </>
-                      ) : "Mettre à jour"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => setShowEditVehicleModal(false)}
-                      disabled={loading.form}
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showAddDriverModal && (
-          <div className="modal-overlay active">
-            <div className="modal-content">
-              <button
-                className="modal-close-btn"
-                onClick={() => setShowAddDriverModal(false)}
-                aria-label="Fermer la modale"
-              >
-                ×
-              </button>
-              <div className="device-form-container">
-                <div className="device-header">
-                  <h2>Ajouter un chauffeur</h2>
-                  <div className="device-decoration"></div>
                 </div>
 
-                {driverFormError && (
-                  <div className="device-message error">
-                    <span className="message-icon">❌</span>
-                    <p>{driverFormError}</p>
-                  </div>
-                )}
+                <div className="device-form-section">
+                  <h3 className="section-title">Informations complémentaires</h3>
+                  <div className="form-grid">
+                    <div className="device-form-group">
+                      <label>Catégorie</label>
+                      <input
+                        type="text"
+                        name="category"
+                        value={editVehicleForm.category || ''}
+                        onChange={handleEditVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Catégorie du véhicule"
+                      />
+                    </div>
 
-                <form onSubmit={handleDriverFormSubmit}>
-                  <div className="device-form-section">
-                    <div className="form-grid">
-                      <div className="device-form-group">
-                        <label className="required-field">Nom du chauffeur</label>
-                        <input
-                          type="text"
-                          name="name"
-                          required
-                          value={driverForm.name}
-                          onChange={handleDriverFormChange}
-                          disabled={loading.driverForm}
-                          placeholder="Entrez le nom complet"
-                        />
-                      </div>
+                    <div className="device-form-group">
+                      <label>Modèle</label>
+                      <input
+                        type="text"
+                        name="model"
+                        value={editVehicleForm.model || ''}
+                        onChange={handleEditVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Modèle du véhicule"
+                      />
+                    </div>
 
-                      <div className="device-form-group">
-                        <label className="required-field">Identifiant unique</label>
-                        <input
-                          type="text"
-                          name="uniqueId"
-                          required
-                          value={driverForm.uniqueId}
-                          onChange={handleDriverFormChange}
-                          disabled={loading.driverForm}
-                          placeholder="ID ou matricule"
-                        />
-                      </div>
+                    <div className="device-form-group">
+                      <label>Téléphone (SIM)</label>
+                      <input
+                        type="text"
+                        name="phone"
+                        value={editVehicleForm.phone || ''}
+                        onChange={handleEditVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Numéro de téléphone"
+                      />
+                    </div>
+
+                    <div className="device-form-group">
+                      <label>Contact</label>
+                      <input
+                        type="text"
+                        name="contact"
+                        value={editVehicleForm.contact || ''}
+                        onChange={handleEditVehicleFormChange}
+                        disabled={loading.form}
+                        placeholder="Personne à contacter"
+                      />
                     </div>
                   </div>
+                </div>
 
-                  <div className="form-actions">
-                    <button
-                      type="submit"
-                      disabled={loading.driverForm}
-                      className="device-submit-btn"
-                    >
-                      {loading.driverForm ? (
-                        <>
-                          <Loader className="loading-spinner" size={20} />
-                          Envoi en cours...
-                        </>
-                      ) : "Ajouter le chauffeur"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => setShowAddDriverModal(false)}
-                      disabled={loading.driverForm}
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </form>
-              </div>
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    disabled={loading.form}
+                    className="device-submit-btn"
+                  >
+                    {loading.form ? (
+                      <>
+                        <Loader className="loading-spinner" size={20} />
+                        Envoi en cours...
+                      </>
+                    ) : "Mettre à jour"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowEditVehicleModal(false)}
+                    disabled={loading.form}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {showArchiveModal && vehicleToArchive && (
-          <div className="modal-overlay active">
-            <div className="modal-content">
+      {showAddDriverModal && (
+        <div className="modal-overlay active">
+          <div className="modal-content">
+            <button
+              className="modal-close-btn"
+              onClick={() => setShowAddDriverModal(false)}
+              aria-label="Fermer la modale"
+            >
+              <X size={24} />
+            </button>
+            <div className="device-form-container">
+              <div className="device-header">
+                <h2>Ajouter un chauffeur</h2>
+                <div className="device-decoration"></div>
+              </div>
+
+              {driverFormError && (
+                <div className="device-message error">
+                  <AlertCircle className="message-icon" size={20} />
+                  <p>{driverFormError}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleDriverFormSubmit}>
+                <div className="device-form-section">
+                  <div className="form-grid">
+                    <div className="device-form-group">
+                      <label className="required-field">Nom du chauffeur</label>
+                      <input
+                        type="text"
+                        name="name"
+                        required
+                        value={driverForm.name}
+                        onChange={handleDriverFormChange}
+                        disabled={loading.driverForm}
+                        placeholder="Entrez le nom complet"
+                      />
+                    </div>
+
+                    <div className="device-form-group">
+                      <label className="required-field">Identifiant unique</label>
+                      <input
+                        type="text"
+                        name="uniqueId"
+                        required
+                        value={driverForm.uniqueId}
+                        onChange={handleDriverFormChange}
+                        disabled={loading.driverForm}
+                        placeholder="ID ou matricule"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-actions">
+                  <button
+                    type="submit"
+                    disabled={loading.driverForm}
+                    className="device-submit-btn"
+                  >
+                    {loading.driverForm ? (
+                      <>
+                        <Loader className="loading-spinner" size={20} />
+                        Envoi en cours...
+                      </>
+                    ) : "Ajouter le chauffeur"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowAddDriverModal(false)}
+                    disabled={loading.driverForm}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showArchiveModal && vehicleToArchive && (
+        <div className="modal-overlay active">
+          <div className="modal-content">
+            <button
+              className="modal-close-btn"
+              onClick={() => setShowArchiveModal(false)}
+              aria-label="Fermer la modale"
+            >
+              <X size={24} />
+            </button>
+            <h3 className="confirmation-modal">⚠️ Confirmer l'archivage</h3>
+            <p className="modal-message">
+              Êtes-vous sûr de vouloir archiver le véhicule <strong>{vehicleToArchive.name}</strong> ?
+            </p>
+            <div className="form-actions">
               <button
-                className="modal-close-btn"
+                onClick={handleArchive}
+                className="group-btn danger"
+                disabled={loading.actions}
+              >
+                {loading.actions ? 'Archivage...' : 'Confirmer'}
+              </button>
+              <button
                 onClick={() => setShowArchiveModal(false)}
-                aria-label="Fermer la modale"
+                className="group-btn secondary"
+                disabled={loading.actions}
               >
-                ×
+                Annuler
               </button>
-              <h3 className="confirmation-modal">⚠️ Confirmer l'archivage</h3>
-              <p className="modal-message">
-                Êtes-vous sûr de vouloir archiver le véhicule <strong>{vehicleToArchive.name}</strong> ?
-              </p>
-              <div className="form-actions">
-                <button
-                  onClick={handleArchive}
-                  className="group-btn danger"
-                  disabled={loading.actions}
-                >
-                  {loading.actions ? 'Archivage...' : 'Confirmer'}
-                </button>
-                <button
-                  onClick={() => setShowArchiveModal(false)}
-                  className="group-btn secondary"
-                  disabled={loading.actions}
-                >
-                  Annuler
-                </button>
-              </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <ToastContainer
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-        />
-      </div>
-    </>
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
+    </div>
   );
 };
 
